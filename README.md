@@ -54,10 +54,13 @@ This app lives in `altbsa-scheduler/` as a **separate** Next.js project from the
 
 The migration seeds:
 
-| Resource slug | Name  | Notes                                      |
-| ------------- | ----- | ------------------------------------------ |
-| `cages`       | Cages | All cages booked as **one** pooled unit    |
-| `court`       | Court | Single court resource (may be turfed later)|
+| Resource slug | Name                     | Notes                                      |
+| ------------- | ------------------------ | ------------------------------------------ |
+| `cages`       | Cages                    | All cages booked as **one** pooled unit    |
+| `court`       | Court                    | Single court resource (may be turfed later)|
+| `shoremen`    | Train with the Shoremen  | Grouped under **Other** tab in the UI      |
+| `shoregals`   | Train with the ShoreGals | Grouped under **Other** tab in the UI      |
+| `t3`          | T3                       | Grouped under **Other** tab in the UI      |
 
 Default open hours (facility-local `America/New_York`):
 
@@ -97,7 +100,7 @@ where email = 'coach@example.com';
 | ----------------------- | ---------------------------------------------------- |
 | `allowed_emails`        | Who may sign in + intended coach/admin role          |
 | `profiles`              | Coach/admin roles keyed to `auth.users`              |
-| `resources`             | Bookable units (Cages, Court)                        |
+| `resources`             | Bookable units (Cages, Court, Other programs)        |
 | `availability_windows`  | Weekly open hours per resource (or all)              |
 | `bookings`              | Confirmed/cancelled bookings                         |
 | `resource_blocks`       | Admin exclusions / closed periods                    |

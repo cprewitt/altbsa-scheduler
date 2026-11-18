@@ -80,7 +80,8 @@ export default async function SchedulePage({
             <strong className="font-semibold text-stone-700">
               Email my schedule
             </strong>{" "}
-            to send your confirmed cages/court sessions to your login email.
+            to send your confirmed cages/court/other sessions to your login
+            email.
           </p>
           <EmailMyScheduleButton />
         </div>

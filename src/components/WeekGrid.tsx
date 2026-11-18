@@ -24,6 +24,11 @@ import type {
 
 type CoachOption = Pick<Profile, "id" | "email" | "full_name">;
 
+/** Top-level schedule views. "other" groups Shoremen / ShoreGals / T3. */
+const OTHER_SLUGS = ["shoremen", "shoregals", "t3"] as const;
+
+type ViewId = "cages" | "court" | "other";
+
 type Props = {
   weekStartIso: string;
   resources: Resource[];
@@ -52,6 +57,14 @@ function coachLabel(booking: Booking): string {
   return team ? `${name} · ${team}` : name;
 }
 
+function initialView(resources: Resource[]): ViewId {
+  if (resources.some((r) => r.slug === "cages")) return "cages";
+  if (resources.some((r) => r.slug === "court")) return "court";
+  if (resources.some((r) => OTHER_SLUGS.includes(r.slug as (typeof OTHER_SLUGS)[number])))
+    return "other";
+  return "cages";
+}
+
 export function WeekGrid({
   weekStartIso,
   resources,
@@ -62,13 +75,41 @@ export function WeekGrid({
   mode = "schedule",
   coaches = [],
 }: Props) {
-  const [resourceId, setResourceId] = useState(resources[0]?.id || "");
+  const cages = useMemo(
+    () => resources.find((r) => r.slug === "cages") || null,
+    [resources]
+  );
+  const court = useMemo(
+    () => resources.find((r) => r.slug === "court") || null,
+    [resources]
+  );
+  const otherResources = useMemo(
+    () =>
+      resources
+        .filter((r) =>
+          OTHER_SLUGS.includes(r.slug as (typeof OTHER_SLUGS)[number])
+        )
+        .sort((a, b) => a.sort_order - b.sort_order),
+    [resources]
+  );
+
+  const [view, setView] = useState<ViewId>(() => initialView(resources));
+  const [otherResourceId, setOtherResourceId] = useState(
+    () => otherResources[0]?.id || ""
+  );
   const [bookAsUserId, setBookAsUserId] = useState(profile.id);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const isAdmin = profile.role === "admin";
   const showBookAs = isAdmin && mode === "admin";
+
+  const resourceId =
+    view === "cages"
+      ? cages?.id || ""
+      : view === "court"
+        ? court?.id || ""
+        : otherResourceId || otherResources[0]?.id || "";
 
   const coachOptions = useMemo(() => {
     const map = new Map<string, CoachOption>();
@@ -93,6 +134,7 @@ export function WeekGrid({
 
   const hours = useMemo(() => {
     const set = new Set<number>();
+    if (!resourceId) return [];
     for (const day of days) {
       for (const start of openSlotStarts(day, resourceId, windows)) {
         set.add(start.getHours());
@@ -162,24 +204,41 @@ export function WeekGrid({
 
   const selected = resources.find((r) => r.id === resourceId);
 
+  const viewTabs: { id: ViewId; label: string; available: boolean }[] = [
+    { id: "cages", label: "Cages", available: !!cages },
+    { id: "court", label: "Court", available: !!court },
+    {
+      id: "other",
+      label: "Other",
+      available: otherResources.length > 0,
+    },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-wrap gap-2">
-          {resources.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setResourceId(r.id)}
-              className={
-                r.id === resourceId
-                  ? "rounded bg-[var(--maroon)] px-3 py-1.5 text-sm font-semibold text-white"
-                  : "rounded border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-[var(--ink)] hover:border-[var(--maroon)]"
-              }
-            >
-              {r.name}
-            </button>
-          ))}
+          {viewTabs
+            .filter((t) => t.available)
+            .map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setView(t.id);
+                  if (t.id === "other" && !otherResourceId && otherResources[0]) {
+                    setOtherResourceId(otherResources[0].id);
+                  }
+                }}
+                className={
+                  view === t.id
+                    ? "rounded bg-[var(--maroon)] px-3 py-1.5 text-sm font-semibold text-white"
+                    : "rounded border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-[var(--ink)] hover:border-[var(--maroon)]"
+                }
+              >
+                {t.label}
+              </button>
+            ))}
         </div>
         {showBookAs && (
           <label className="grid gap-1 text-sm">
@@ -200,9 +259,28 @@ export function WeekGrid({
         )}
       </div>
 
+      {view === "other" && otherResources.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {otherResources.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => setOtherResourceId(r.id)}
+              className={
+                r.id === resourceId
+                  ? "rounded border border-[var(--maroon)] bg-[var(--maroon)]/10 px-3 py-1.5 text-sm font-semibold text-[var(--maroon)]"
+                  : "rounded border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-[var(--ink)] hover:border-[var(--maroon)]"
+              }
+            >
+              {r.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <p className="text-sm text-stone-600">
-        {selected?.description || selected?.name} · times in {FACILITY_TZ} ·
-        1-hour slots · click open to book
+        {selected?.description || selected?.name || "Select a schedule"} · times
+        in {FACILITY_TZ} · 1-hour slots · click open to book
         {showBookAs
           ? " · pick a coach above, then Book · block or cancel anyone"
           : ""}
