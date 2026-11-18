@@ -18,16 +18,32 @@ export async function getAllowlistEntry(
   if (!normalized) return null;
 
   const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("allowed_emails")
-    .select("email, full_name, intended_role")
-    .eq("email", normalized)
-    .maybeSingle();
+  let lastError: Error | null = null;
 
-  if (error) {
-    throw new Error(error.message);
+  // Brief retries — local DNS/network blips show up as TypeError: fetch failed
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const { data, error } = await supabase
+        .from("allowed_emails")
+        .select("email, full_name, intended_role")
+        .eq("email", normalized)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      return data as AllowlistEntry | null;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const transient = /fetch failed|ENOTFOUND|ECONNRESET|ETIMEDOUT|network/i.test(
+        lastError.message
+      );
+      if (!transient || attempt === 3) break;
+      await new Promise((r) => setTimeout(r, 250 * attempt));
+    }
   }
-  return data as AllowlistEntry | null;
+
+  throw lastError ?? new Error("Allowlist lookup failed");
 }
 
 export async function syncProfileFromAllowlist(

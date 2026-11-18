@@ -115,6 +115,18 @@ where email = 'coach@example.com';
 5. At your DNS host for `altbsa.org`, create a CNAME (or A/ALIAS per Vercel) for `schedule` → Vercel’s target.
 6. Update Supabase Auth Site URL / redirect URLs to the production domain.
 
+### Email my schedule
+
+On `/schedule`, coaches can click **Email my schedule**. That gathers their confirmed 2027 indoor bookings (cages + court) and emails **to the logged-in coach**.
+
+Send path (first match wins):
+
+1. **Google Workspace Gmail API** (`GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET` + `GMAIL_REFRESH_TOKEN`) — sends from `tryouts@altbsa.org` (or `EMAIL_FROM` / `GMAIL_SENDER`).
+2. **Resend** (`RESEND_API_KEY`) — optional alternate.
+3. **Fallback** — opens mailto to themselves + downloads an `.ics` file.
+
+Note: Supabase magic-link login only uses email as the *sign-in* channel. It does **not** expose that transport to the app for arbitrary messages, so schedule send needs the Workspace OAuth (or Resend) above — ideally the same `tryouts@` mailbox.
+
 ## Out of scope (v1)
 
 Parent booking, payments, SMS, field scheduling, waitlists, native mobile apps.

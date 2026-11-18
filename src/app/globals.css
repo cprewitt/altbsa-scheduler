@@ -8,6 +8,9 @@
   --paper: #f7f4f0;
   --background: var(--paper);
   --foreground: var(--ink);
+  /* Local stack — avoids next/font Google fetch (fonts.googleapis.com) */
+  --font-body: "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial,
+    sans-serif;
 }
 
 @theme inline {

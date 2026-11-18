@@ -46,7 +46,10 @@ function coachLabel(booking: Booking): string {
   const p = Array.isArray(booking.profiles)
     ? booking.profiles[0]
     : booking.profiles;
-  return p?.full_name || p?.email || "Booked";
+  const name = p?.full_name || p?.email || "Booked";
+  if (!booking.notes) return name;
+  const team = booking.notes.replace(/^Jan weekly ·\s*/i, "").trim();
+  return team ? `${name} · ${team}` : name;
 }
 
 export function WeekGrid({

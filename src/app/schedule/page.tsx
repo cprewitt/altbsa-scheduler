@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
+import { EmailMyScheduleButton } from "@/components/EmailMyScheduleButton";
 import { WeekGrid } from "@/components/WeekGrid";
 import { WeekNav } from "@/components/WeekNav";
 import { getSessionProfile } from "@/lib/auth";
@@ -72,10 +73,17 @@ export default async function SchedulePage({
         <h1 className="mb-1 text-xl font-semibold text-[var(--maroon)]">
           Weekly schedule
         </h1>
-        <p className="mb-4 text-sm text-stone-600">
-          Book an open slot for yourself — confirmed immediately when free.
-          Cancel your own bookings anytime.
-        </p>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <p className="max-w-xl text-sm text-stone-600">
+            Book an open slot for yourself — confirmed immediately when free.
+            Cancel your own bookings anytime. Use{" "}
+            <strong className="font-semibold text-stone-700">
+              Email my schedule
+            </strong>{" "}
+            to send your confirmed cages/court sessions to your login email.
+          </p>
+          <EmailMyScheduleButton />
+        </div>
         <WeekNav weekStart={weekStart} basePath="/schedule" />
         {errors.length > 0 && (
           <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">

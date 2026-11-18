@@ -50,7 +50,12 @@ export default async function LoginPage({
         </div>
       </div>
       <p className="mt-4 text-center text-xs text-stone-500">
-        Target host: schedule.altbsa.org
+        Magic-link redirect:{" "}
+        {(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(
+          /\/$/,
+          ""
+        )}
+        /auth/callback
       </p>
     </main>
   );
