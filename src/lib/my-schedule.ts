@@ -18,7 +18,7 @@ export function resourceLabel(
 
 export function teamFromNotes(notes: string | null): string | null {
   if (!notes) return null;
-  const m = notes.match(/^(?:Jan weekly|Gym weekly)\s*·\s*(.+)$/i);
+  const m = notes.match(/^(?:Jan weekly|Gym weekly|T3)\s*·\s*(.+)$/i);
   if (m) return m[1].trim();
   return notes.trim() || null;
 }
