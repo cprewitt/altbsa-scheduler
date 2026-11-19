@@ -72,18 +72,18 @@ const WEEKLY = [
 
 /**
  * T3 Fridays → teams that skip gym that ISO week.
- * Keep in sync with scripts/seed-t3-sessions.mjs (same age band only; Feb 12 = 13Us).
+ * Keep in sync with scripts/seed-t3-sessions.mjs (baseball only; Feb 12 = 13Us).
  */
 const T3_BY_FRIDAY = {
-  "2027-02-05": ["14U Maroon Baseball", "14U Maroon Softball"],
+  "2027-02-05": ["14U Maroon Baseball"],
   "2027-02-12": ["13U Maroon Baseball", "13U Gold Baseball"],
   "2027-02-19": ["12U Maroon Baseball", "12U Gold Baseball"],
   "2027-02-26": ["11U Maroon Baseball", "11U Gold Baseball"],
   "2027-03-05": ["10U Maroon Baseball", "10U Gold Baseball"],
   "2027-03-12": ["9U Maroon Baseball", "9U Gold Baseball"],
   "2027-03-19": ["8U Maroon Baseball", "8U Gold Baseball"],
-  "2027-04-02": ["12U Maroon Softball", "12U Gold Softball"],
-  "2027-04-09": ["10U Maroon Softball", "10U Gold Softball"],
+  "2027-04-02": ["10U Gold Baseball", "10U White Baseball"],
+  "2027-04-09": ["9U Gold Baseball", "9U White Baseball"],
 };
 
 const EASTER = "2027-03-28";

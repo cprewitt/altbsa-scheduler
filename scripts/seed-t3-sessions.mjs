@@ -1,10 +1,11 @@
 /**
  * Seed baseball T3 (Building Two) Friday sessions into the `t3` resource.
- * Fridays 7:00–8:30 PM America/New_York; two teams share each date (one booking).
+ * Fridays 7:00–8:30 PM America/New_York; two teams share each date when possible.
  *
- * Rule: same age band only (12Us together, 11Us, etc.). Prefer baseball same-age
- * pairs; softbal same-age where possible. 14U BB + 14U SB share a night (only one
- * BB 14U). Feb 12 is 13Us (Shoremen HS Aux is 7U–12U that night — older kids only).
+ * Rule: baseball only (no softbal, no 7U). Same age band (12Us together, etc.).
+ * Extra nights for 10U / 9U so White teams get a same-age partner.
+ * Feb 12 is 13Us (Shoremen HS Aux same night for 7U–12U hourly — older kids only).
+ * 14U Maroon is solo (only one baseball 14U).
  *
  * Safe to re-run: cancels prior "T3 ·" bookings on t3 in range first.
  *
@@ -35,15 +36,15 @@ const NOTE_PREFIX = "T3 · ";
 const HOLDER_EMAIL = "tryouts@altbsa.org";
 
 /**
- * Locked pairings (2026-11-19): same age band only.
+ * Locked pairings (2026-11-19): baseball, same age band only.
  * Keep in sync with T3_BY_FRIDAY in seed-february-gym.mjs.
  *
- * Odd teams out (no same-age partner left): 7U Maroon BB, 9U White BB, 10U White BB.
+ * Out: softbal (academy path), 7U Maroon (too young for T3).
  */
 export const T3_SESSIONS = [
   {
     date: "2027-02-05",
-    teams: ["14U Maroon Baseball", "14U Maroon Softball"],
+    teams: ["14U Maroon Baseball"],
   },
   {
     date: "2027-02-12",
@@ -71,13 +72,18 @@ export const T3_SESSIONS = [
   },
   {
     date: "2027-04-02",
-    teams: ["12U Maroon Softball", "12U Gold Softball"],
+    teams: ["10U Gold Baseball", "10U White Baseball"],
   },
   {
     date: "2027-04-09",
-    teams: ["10U Maroon Softball", "10U Gold Softball"],
+    teams: ["9U Gold Baseball", "9U White Baseball"],
   },
 ];
+
+function t3Note(teams) {
+  if (teams.length === 1) return `${NOTE_PREFIX}${teams[0]}`;
+  return `${NOTE_PREFIX}${teams[0]} vs ${teams[1]}`;
+}
 
 function loadEnvClient() {
   if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -170,7 +176,7 @@ async function main() {
       starts_at,
       ends_at,
       status: "confirmed",
-      notes: `${NOTE_PREFIX}${s.teams[0]} vs ${s.teams[1]}`,
+      notes: t3Note(s.teams),
     };
   });
 
@@ -179,7 +185,7 @@ async function main() {
 
   console.log(`inserted ${rows.length} T3 sessions (7:00–8:30 PM ${TZ}):`);
   for (const s of T3_SESSIONS) {
-    console.log(`  ${s.date}  ${s.teams[0]} vs ${s.teams[1]}`);
+    console.log(`  ${s.date}  ${t3Note(s.teams).replace(NOTE_PREFIX, "")}`);
   }
   console.log("Done. Open /schedule → Other → T3.");
 }
