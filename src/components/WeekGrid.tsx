@@ -54,7 +54,7 @@ function coachLabel(booking: Booking): string {
   const name = p?.full_name || p?.email || "Booked";
   if (!booking.notes) return name;
   const team = booking.notes
-    .replace(/^(?:Jan weekly|Gym weekly|T3)\s*·\s*/i, "")
+    .replace(/^(?:Jan weekly|Gym weekly|T3|Shoremen)\s*·\s*/i, "")
     .trim();
   return team ? `${name} · ${team}` : name;
 }
