@@ -2,8 +2,9 @@
  * Seed baseball T3 (Building Two) Friday sessions into the `t3` resource.
  * Fridays 7:00–8:30 PM America/New_York; two teams share each date (one booking).
  *
- * Priority: 13U / 14U first (Feb 5 + Feb 12), then older→younger; leftover slots
- * filled with softball. Feb 12 is 13U Maroon + 14U Maroon (HS Aux conflict rule).
+ * Rule: same age band only (12Us together, 11Us, etc.). Prefer baseball same-age
+ * pairs; softbal same-age where possible. 14U BB + 14U SB share a night (only one
+ * BB 14U). Feb 12 is 13Us (Shoremen HS Aux is 7U–12U that night — older kids only).
  *
  * Safe to re-run: cancels prior "T3 ·" bookings on t3 in range first.
  *
@@ -34,25 +35,27 @@ const NOTE_PREFIX = "T3 · ";
 const HOLDER_EMAIL = "tryouts@altbsa.org";
 
 /**
- * Locked pairings (2026-11-19): 13U/14U first; Feb 12 = 13U+14U.
+ * Locked pairings (2026-11-19): same age band only.
  * Keep in sync with T3_BY_FRIDAY in seed-february-gym.mjs.
+ *
+ * Odd teams out (no same-age partner left): 7U Maroon BB, 9U White BB, 10U White BB.
  */
 export const T3_SESSIONS = [
   {
     date: "2027-02-05",
-    teams: ["13U Gold Baseball", "12U Gold Baseball"],
+    teams: ["14U Maroon Baseball", "14U Maroon Softball"],
   },
   {
     date: "2027-02-12",
-    teams: ["13U Maroon Baseball", "14U Maroon Baseball"],
+    teams: ["13U Maroon Baseball", "13U Gold Baseball"],
   },
   {
     date: "2027-02-19",
-    teams: ["12U Maroon Baseball", "11U Maroon Baseball"],
+    teams: ["12U Maroon Baseball", "12U Gold Baseball"],
   },
   {
     date: "2027-02-26",
-    teams: ["11U Gold Baseball", "10U White Baseball"],
+    teams: ["11U Maroon Baseball", "11U Gold Baseball"],
   },
   {
     date: "2027-03-05",
@@ -64,11 +67,11 @@ export const T3_SESSIONS = [
   },
   {
     date: "2027-03-19",
-    teams: ["9U White Baseball", "8U Maroon Baseball"],
+    teams: ["8U Maroon Baseball", "8U Gold Baseball"],
   },
   {
     date: "2027-04-02",
-    teams: ["8U Gold Baseball", "12U Maroon Softball"],
+    teams: ["12U Maroon Softball", "12U Gold Softball"],
   },
   {
     date: "2027-04-09",
