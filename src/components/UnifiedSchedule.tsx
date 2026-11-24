@@ -8,21 +8,25 @@ import {
   DEFAULT_EVENT_TITLE,
   LOCATION_CHIP_CLASS,
   LOCATION_SLUGS,
+  ageGroupsFromShoremenLabel,
   coachTeamsSmoothDefault,
   eventIncludesTeam,
   resourceOf,
+  teamNamesDetail,
   teamNamesLabel,
   teamsOf,
   type LocationSlug,
 } from "@/lib/schedule-events";
 import {
   FACILITY_TZ,
+  calendarDateKey,
+  facilityDateKey,
+  facilityHour,
   formatDayHeader,
   formatHourLabel,
   localSlotToUtcIso,
   openSlotStarts,
   rangesOverlap,
-  utcIsoToFacilityDate,
   weekDays,
 } from "@/lib/time";
 import type {
@@ -32,6 +36,7 @@ import type {
   ResourceBlock,
   ScheduleEvent,
   Team,
+  TeamCoachInfo,
 } from "@/lib/types";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -44,6 +49,7 @@ type Props = {
   blocks: ResourceBlock[];
   events: ScheduleEvent[];
   teams: Team[];
+  coaches: TeamCoachInfo[];
   myTeamIds: string[];
   profile: Profile;
 };
@@ -57,6 +63,29 @@ function slugOf(event: ScheduleEvent, resources: Resource[]): LocationSlug | nul
     : null;
 }
 
+function coachesForTeams(
+  teamIds: string[],
+  coaches: TeamCoachInfo[]
+): TeamCoachInfo[] {
+  const seen = new Set<string>();
+  const out: TeamCoachInfo[] = [];
+  for (const c of coaches) {
+    if (!teamIds.includes(c.team_id)) continue;
+    const key = c.email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+  }
+  return out;
+}
+
+function coachNamesLabel(coaches: TeamCoachInfo[]): string {
+  if (!coaches.length) return "";
+  return coaches
+    .map((c) => c.full_name?.trim() || c.email.split("@")[0])
+    .join(", ");
+}
+
 export function UnifiedSchedule({
   weekStartIso,
   resources,
@@ -64,6 +93,7 @@ export function UnifiedSchedule({
   blocks,
   events,
   teams,
+  coaches,
   myTeamIds,
   profile,
 }: Props) {
@@ -81,6 +111,7 @@ export function UnifiedSchedule({
   const [ageGroup, setAgeGroup] = useState<string>("all");
   const [focusTeamId, setFocusTeamId] = useState<string | null>(autoFocus);
   const [bookLocation, setBookLocation] = useState<"cages" | "court">("cages");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -112,15 +143,31 @@ export function UnifiedSchedule({
         if (evTeams.length && !evTeams.some((t) => t.sport === sport)) {
           return false;
         }
+        if (
+          !evTeams.length &&
+          (slug === "shoremen" || slug === "shoregals") &&
+          ((slug === "shoremen" && sport !== "baseball") ||
+            (slug === "shoregals" && sport !== "softball"))
+        ) {
+          return false;
+        }
       }
       if (ageGroup !== "all") {
-        if (evTeams.length && !evTeams.some((t) => t.age_group === ageGroup)) {
-          return false;
+        if (evTeams.length) {
+          if (!evTeams.some((t) => t.age_group === ageGroup)) return false;
+        } else {
+          const band = ageGroupsFromShoremenLabel(ev.notes);
+          if (band.length && !band.includes(ageGroup)) return false;
         }
       }
       return true;
     });
   }, [events, resources, locations, sport, ageGroup]);
+
+  const selected = useMemo(
+    () => filteredEvents.find((e) => e.id === selectedId) || null,
+    [filteredEvents, selectedId]
+  );
 
   const listEvents = useMemo(() => {
     if (!focusTeamId) return [];
@@ -141,15 +188,14 @@ export function UnifiedSchedule({
       }
     }
     for (const ev of filteredEvents) {
-      set.add(utcIsoToFacilityDate(ev.starts_at).getHours());
+      set.add(facilityHour(ev.starts_at));
     }
     for (const b of blocks) {
       const slug = resources.find((r) => r.id === b.resource_id)?.slug;
       if (slug && locations.has(slug as LocationSlug)) {
-        set.add(utcIsoToFacilityDate(b.starts_at).getHours());
+        set.add(facilityHour(b.starts_at));
       }
     }
-    // sensible default band if empty
     if (!set.size) {
       for (let h = 9; h <= 20; h++) set.add(h);
     }
@@ -177,15 +223,30 @@ export function UnifiedSchedule({
   }
 
   function eventsAt(day: Date, hour: number): ScheduleEvent[] {
+    const dayKey = calendarDateKey(day);
+    return filteredEvents.filter(
+      (ev) =>
+        facilityDateKey(ev.starts_at) === dayKey &&
+        facilityHour(ev.starts_at) === hour
+    );
+  }
+
+  function blocksAt(day: Date, hour: number): ResourceBlock[] {
+    const dayKey = calendarDateKey(day);
     const local = new Date(day);
     local.setHours(hour, 0, 0, 0);
     const startsAt = localSlotToUtcIso(local);
     const endLocal = new Date(day);
     endLocal.setHours(hour + 1, 0, 0, 0);
     const endsAt = localSlotToUtcIso(endLocal);
-    return filteredEvents.filter(
-      (ev) => ev.starts_at >= startsAt && ev.starts_at < endsAt
-    );
+    return blocks.filter((b) => {
+      const slug = resources.find((r) => r.id === b.resource_id)?.slug;
+      if (!slug || !locations.has(slug as LocationSlug)) return false;
+      if (facilityDateKey(b.starts_at) !== dayKey) {
+        // still allow multi-hour blocks via overlap
+      }
+      return rangesOverlap(b.starts_at, b.ends_at, startsAt, endsAt);
+    });
   }
 
   function openBookable(day: Date, hour: number): string | null {
@@ -220,6 +281,42 @@ export function UnifiedSchedule({
   }
 
   const showTeamPicker = myTeams.length > 1;
+
+  function EventCard({
+    ev,
+    compact,
+  }: {
+    ev: ScheduleEvent;
+    compact?: boolean;
+  }) {
+    const slug = slugOf(ev, resources);
+    const evTeams = teamsOf(ev);
+    const mine = evTeams.some((t) => myTeamIds.includes(t.id));
+    const eventCoaches = coachesForTeams(
+      evTeams.map((t) => t.id),
+      coaches
+    );
+    const coachLine = coachNamesLabel(eventCoaches);
+    return (
+      <button
+        type="button"
+        onClick={() => setSelectedId(ev.id)}
+        className={`w-full rounded border px-1.5 py-1 text-left text-[11px] leading-snug transition hover:brightness-95 ${
+          slug ? LOCATION_CHIP_CLASS[slug] : "border-stone-200 bg-stone-50"
+        } ${mine ? "ring-1 ring-[var(--maroon)]" : ""} ${
+          selectedId === ev.id ? "outline outline-2 outline-[var(--maroon)]" : ""
+        }`}
+      >
+        <div className="font-bold">{ev.title}</div>
+        <div>{teamNamesLabel(evTeams, ev.notes)}</div>
+        {coachLine ? (
+          <div className={compact ? "truncate text-[10px] opacity-80" : "text-[10px] opacity-80"}>
+            {coachLine}
+          </div>
+        ) : null}
+      </button>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -378,15 +475,20 @@ export function UnifiedSchedule({
               {listEvents.map((ev) => {
                 const slug = slugOf(ev, resources);
                 const evTeams = teamsOf(ev);
-                const mine = focusTeamId
-                  ? eventIncludesTeam(ev, focusTeamId)
-                  : false;
+                const eventCoaches = coachesForTeams(
+                  evTeams.map((t) => t.id),
+                  coaches
+                );
                 return (
                   <li
                     key={ev.id}
                     className="flex flex-wrap items-start justify-between gap-3 px-4 py-3"
                   >
-                    <div>
+                    <button
+                      type="button"
+                      className="text-left"
+                      onClick={() => setSelectedId(ev.id)}
+                    >
                       <div className="font-semibold text-[var(--ink)]">
                         {ev.title}
                       </div>
@@ -402,14 +504,20 @@ export function UnifiedSchedule({
                           FACILITY_TZ,
                           "h:mm a"
                         )}
-                        {slug ? ` · ${DEFAULT_EVENT_TITLE[slug]}` : ""}
+                        {slug ? ` · ${resourceOf(ev)?.name || DEFAULT_EVENT_TITLE[slug]}` : ""}
                       </div>
                       <div className="mt-1 text-sm text-[var(--maroon)]">
-                        {teamNamesLabel(evTeams)}
+                        {teamNamesLabel(evTeams, ev.notes)}
                       </div>
-                    </div>
+                      {eventCoaches.length > 0 && (
+                        <div className="text-xs text-stone-500">
+                          {coachNamesLabel(eventCoaches)}
+                        </div>
+                      )}
+                    </button>
                     <div className="flex flex-wrap gap-2">
-                      {mine &&
+                      {focusTeamId &&
+                        eventIncludesTeam(ev, focusTeamId) &&
                         ev.attendance_policy === "bookable" &&
                         ev.booking_id && (
                           <button
@@ -423,8 +531,8 @@ export function UnifiedSchedule({
                             Cancel
                           </button>
                         )}
-                      {mine &&
-                        focusTeamId &&
+                      {focusTeamId &&
+                        eventIncludesTeam(ev, focusTeamId) &&
                         ev.attendance_policy === "team_optional" && (
                           <button
                             type="button"
@@ -480,6 +588,7 @@ export function UnifiedSchedule({
                   </th>
                   {days.map((day) => {
                     const cellEvents = eventsAt(day, hour);
+                    const cellBlocks = blocksAt(day, hour);
                     const openAt = openBookable(day, hour);
                     return (
                       <td
@@ -487,26 +596,20 @@ export function UnifiedSchedule({
                         className="border-b border-l border-stone-100 align-top p-1 min-h-[52px]"
                       >
                         <div className="flex flex-col gap-1">
-                          {cellEvents.map((ev) => {
-                            const slug = slugOf(ev, resources);
-                            const evTeams = teamsOf(ev);
-                            const mine = evTeams.some((t) =>
-                              myTeamIds.includes(t.id)
-                            );
-                            return (
-                              <div
-                                key={ev.id}
-                                className={`rounded border px-1.5 py-1 text-[11px] leading-snug ${
-                                  slug
-                                    ? LOCATION_CHIP_CLASS[slug]
-                                    : "border-stone-200 bg-stone-50"
-                                } ${mine ? "ring-1 ring-[var(--maroon)]" : ""}`}
-                              >
-                                <div className="font-bold">{ev.title}</div>
-                                <div>{teamNamesLabel(evTeams)}</div>
+                          {cellBlocks.map((b) => (
+                            <div
+                              key={b.id}
+                              className="rounded border border-stone-400 bg-stone-200 px-1.5 py-1 text-[11px] leading-snug text-stone-800"
+                            >
+                              <div className="font-bold">Blocked</div>
+                              <div className="truncate">
+                                {b.reason || "Unavailable"}
                               </div>
-                            );
-                          })}
+                            </div>
+                          ))}
+                          {cellEvents.map((ev) => (
+                            <EventCard key={ev.id} ev={ev} compact />
+                          ))}
                           {openAt && focusTeamId && (
                             <button
                               type="button"
@@ -537,12 +640,166 @@ export function UnifiedSchedule({
         </div>
       )}
 
+      {selected && (
+        <EventDetailPanel
+          event={selected}
+          resources={resources}
+          coaches={coaches}
+          myTeamIds={myTeamIds}
+          focusTeamId={focusTeamId}
+          pending={pending}
+          onClose={() => setSelectedId(null)}
+          onCancelBooking={(bookingId) => run(() => cancelBooking(bookingId))}
+          onLeaveT3={(eventId, teamId) =>
+            run(() => leaveEventTeam({ eventId, teamId }))
+          }
+        />
+      )}
+
       <p className="text-xs text-stone-500">
-        Full calendar shows every team so coaches can trade. You can book open
-        cages/court slots and cancel your own. T3: leave drops only your team.
-        Train with the Shoremen / ShoreGals: age-group sessions stay fixed.
+        Full calendar shows every team so coaches can trade. Click an event for
+        full details. You can book open cages/court slots and cancel your own.
+        T3: leave drops only your team. Train with the Shoremen / ShoreGals:
+        age-group sessions stay fixed.
         {profile.role === "admin" ? " Admins can change anyone from Admin." : ""}
       </p>
+    </div>
+  );
+}
+
+function EventDetailPanel({
+  event,
+  resources,
+  coaches,
+  myTeamIds,
+  focusTeamId,
+  pending,
+  onClose,
+  onCancelBooking,
+  onLeaveT3,
+}: {
+  event: ScheduleEvent;
+  resources: Resource[];
+  coaches: TeamCoachInfo[];
+  myTeamIds: string[];
+  focusTeamId: string | null;
+  pending: boolean;
+  onClose: () => void;
+  onCancelBooking: (bookingId: string) => void;
+  onLeaveT3: (eventId: string, teamId: string) => void;
+}) {
+  const slug = slugOf(event, resources);
+  const evTeams = teamsOf(event);
+  const locationName =
+    resourceOf(event)?.name ||
+    (slug ? DEFAULT_EVENT_TITLE[slug] : "Unknown location");
+  const eventCoaches = coachesForTeams(
+    evTeams.map((t) => t.id),
+    coaches
+  );
+  const timeLabel = `${formatInTimeZone(
+    new Date(event.starts_at),
+    FACILITY_TZ,
+    "EEE MMM d · h:mm a"
+  )} – ${formatInTimeZone(new Date(event.ends_at), FACILITY_TZ, "h:mm a")} ET`;
+  const mine =
+    focusTeamId != null
+      ? eventIncludesTeam(event, focusTeamId)
+      : evTeams.some((t) => myTeamIds.includes(t.id));
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="event-detail-title"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-lg border border-stone-200 bg-white p-4 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h2
+            id="event-detail-title"
+            className="text-lg font-semibold text-[var(--maroon)]"
+          >
+            {event.title}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded px-2 py-1 text-sm font-semibold text-stone-500 hover:bg-stone-100"
+          >
+            Close
+          </button>
+        </div>
+        <dl className="mt-3 space-y-2 text-sm">
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+              Team(s)
+            </dt>
+            <dd className="text-[var(--ink)]">
+              {teamNamesDetail(evTeams, event.notes)}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+              Location
+            </dt>
+            <dd className="text-[var(--ink)]">{locationName}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+              Time
+            </dt>
+            <dd className="text-[var(--ink)]">{timeLabel}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+              Coach(es)
+            </dt>
+            <dd className="text-[var(--ink)]">
+              {eventCoaches.length
+                ? eventCoaches
+                    .map((c) => c.full_name?.trim() || c.email)
+                    .join(", ")
+                : "—"}
+            </dd>
+          </div>
+        </dl>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {mine &&
+            event.attendance_policy === "bookable" &&
+            event.booking_id && (
+              <button
+                type="button"
+                disabled={pending}
+                className="rounded border border-stone-300 px-3 py-1.5 text-xs font-semibold"
+                onClick={() => onCancelBooking(event.booking_id!)}
+              >
+                Cancel booking
+              </button>
+            )}
+          {mine &&
+            focusTeamId &&
+            event.attendance_policy === "team_optional" && (
+              <button
+                type="button"
+                disabled={pending}
+                className="rounded border border-stone-300 px-3 py-1.5 text-xs font-semibold"
+                onClick={() => onLeaveT3(event.id, focusTeamId)}
+              >
+                Leave this T3
+              </button>
+            )}
+          {event.attendance_policy === "fixed" && (
+            <span className="self-center text-xs text-stone-500">
+              Age-group session (fixed)
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

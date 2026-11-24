@@ -45,7 +45,7 @@ function eventsToRows(events: ScheduleEvent[]): ScheduleBookingRow[] {
       id: ev.id,
       starts_at: ev.starts_at,
       ends_at: ev.ends_at,
-      notes: `${ev.title} · ${teamNamesLabel(teams)}`,
+      notes: `${ev.title} · ${teamNamesLabel(teams, ev.notes)}`,
       resources: resources
         ? { name: resources.name, slug: resources.slug }
         : { name: ev.title, slug: "event" },

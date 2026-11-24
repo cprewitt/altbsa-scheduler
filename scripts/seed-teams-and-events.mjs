@@ -86,8 +86,10 @@ function ageGroupsFromShoremen(notes) {
   if (plus) return [plus[1].toUpperCase(), plus[2].toUpperCase()];
   const range = notes.match(/(\d{1,2}U)\s*[–-]\s*(\d{1,2}U)/i);
   if (!range) return [];
-  const a = Number(range[1]);
-  const b = Number(range[2]);
+  // parseInt("9U", 10) → 9; Number("9U") → NaN (left 9U–10U / 11U–12U unlinked)
+  const a = parseInt(range[1], 10);
+  const b = parseInt(range[2], 10);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return [];
   const out = [];
   for (let i = a; i <= b; i++) out.push(`${i}U`);
   return out;

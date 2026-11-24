@@ -9,7 +9,7 @@ import {
   setSeconds,
   setMilliseconds,
 } from "date-fns";
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
+import { toZonedTime, fromZonedTime, formatInTimeZone } from "date-fns-tz";
 import type { AvailabilityWindow } from "./types";
 
 export const FACILITY_TZ =
@@ -85,6 +85,21 @@ export function localSlotToUtcIso(localWallClock: Date): string {
 
 export function utcIsoToFacilityDate(iso: string): Date {
   return toZonedTime(new Date(iso), FACILITY_TZ);
+}
+
+/** Facility-local calendar date (yyyy-MM-dd) for an instant. */
+export function facilityDateKey(iso: string): string {
+  return formatInTimeZone(new Date(iso), FACILITY_TZ, "yyyy-MM-dd");
+}
+
+/** Facility-local hour (0–23) for an instant. */
+export function facilityHour(iso: string): number {
+  return Number(formatInTimeZone(new Date(iso), FACILITY_TZ, "H"));
+}
+
+/** Calendar yyyy-MM-dd from a week-grid day Date (local wall components). */
+export function calendarDateKey(day: Date): string {
+  return format(day, "yyyy-MM-dd");
 }
 
 export function slotEndIso(startIso: string): string {

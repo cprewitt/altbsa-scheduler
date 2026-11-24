@@ -16,6 +16,7 @@ import type {
   ResourceBlock,
   ScheduleEvent,
   Team,
+  TeamCoachInfo,
 } from "@/lib/types";
 
 export default async function SchedulePage({
@@ -38,6 +39,7 @@ export default async function SchedulePage({
     { data: events, error: eventsError },
     { data: teams, error: teamsError },
     { data: myLinks, error: linksError },
+    { data: coachRows, error: coachesError },
   ] = await Promise.all([
     supabase
       .from("resources")
@@ -70,6 +72,9 @@ export default async function SchedulePage({
       .from("team_coaches")
       .select("team_id")
       .eq("coach_user_id", session.profile.id),
+    supabase
+      .from("team_coaches")
+      .select("team_id, profiles(full_name, email)"),
   ]);
 
   const errors = [
@@ -79,9 +84,21 @@ export default async function SchedulePage({
     eventsError?.message,
     teamsError?.message,
     linksError?.message,
+    coachesError?.message,
   ].filter(Boolean);
 
   const myTeamIds = (myLinks || []).map((l) => l.team_id);
+
+  const coaches: TeamCoachInfo[] = [];
+  for (const row of coachRows || []) {
+    const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    if (!p) continue;
+    coaches.push({
+      team_id: row.team_id,
+      full_name: p.full_name ?? null,
+      email: p.email,
+    });
+  }
 
   return (
     <div>
@@ -124,6 +141,7 @@ export default async function SchedulePage({
             blocks={(blocks || []) as ResourceBlock[]}
             events={(events || []) as unknown as ScheduleEvent[]}
             teams={(teams || []) as Team[]}
+            coaches={coaches}
             myTeamIds={myTeamIds}
             profile={session.profile}
           />
