@@ -2,8 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { parse } from "date-fns";
-import { cancelBooking } from "@/actions/bookings";
+import { createBooking, cancelBooking } from "@/actions/bookings";
+import { createBlock, deleteBlock } from "@/actions/blocks";
 import { leaveEventTeam } from "@/actions/schedule-events";
+import { BookSlotDialog } from "@/components/BookSlotDialog";
 import {
   DEFAULT_EVENT_TITLE,
   LOCATION_CHIP_CLASS,
@@ -42,6 +44,8 @@ import { formatInTimeZone } from "date-fns-tz";
 
 type LayoutMode = "grid" | "list";
 
+type AdminCoachOption = Pick<Profile, "id" | "email" | "full_name">;
+
 type Props = {
   weekStartIso: string;
   resources: Resource[];
@@ -52,6 +56,9 @@ type Props = {
   coaches: TeamCoachInfo[];
   myTeamIds: string[];
   profile: Profile;
+  /** Admin calendar: same view + single Book or block button. */
+  mode?: "schedule" | "admin";
+  adminCoaches?: AdminCoachOption[];
 };
 
 function slugOf(event: ScheduleEvent, resources: Resource[]): LocationSlug | null {
@@ -96,7 +103,10 @@ export function UnifiedSchedule({
   coaches,
   myTeamIds,
   profile,
+  mode = "schedule",
+  adminCoaches = [],
 }: Props) {
+  const isAdminMode = mode === "admin" && profile.role === "admin";
   const myTeams = useMemo(
     () => teams.filter((t) => myTeamIds.includes(t.id)),
     [teams, myTeamIds]
@@ -111,6 +121,7 @@ export function UnifiedSchedule({
   const [ageGroup, setAgeGroup] = useState<string>("all");
   const [focusTeamId, setFocusTeamId] = useState<string | null>(autoFocus);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [slotDialogOpen, setSlotDialogOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -250,6 +261,31 @@ export function UnifiedSchedule({
 
   const showTeamPicker = myTeams.length > 1;
 
+  const bookableLocations = useMemo(
+    () =>
+      resources
+        .filter((r) => r.slug === "cages" || r.slug === "court")
+        .map((r) => ({
+          resourceId: r.id,
+          slug: r.slug,
+          name: r.name,
+        })),
+    [resources]
+  );
+
+  const coachOptions = useMemo(() => {
+    const map = new Map<string, AdminCoachOption>();
+    map.set(profile.id, {
+      id: profile.id,
+      email: profile.email,
+      full_name: profile.full_name,
+    });
+    for (const c of adminCoaches) map.set(c.id, c);
+    return Array.from(map.values()).sort((a, b) =>
+      (a.full_name || a.email).localeCompare(b.full_name || b.email)
+    );
+  }, [adminCoaches, profile]);
+
   function EventCard({
     ev,
     compact,
@@ -310,6 +346,17 @@ export function UnifiedSchedule({
             </button>
           ))}
         </div>
+
+        {isAdminMode && (
+          <button
+            type="button"
+            disabled={pending || bookableLocations.length === 0}
+            onClick={() => setSlotDialogOpen(true)}
+            className="rounded bg-[var(--maroon)] px-3 py-1.5 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-50"
+          >
+            Book or block
+          </button>
+        )}
 
         {(showTeamPicker || layout === "list") && myTeams.length > 0 && (
           <label className="flex items-center gap-2 text-sm">
@@ -557,6 +604,16 @@ export function UnifiedSchedule({
                               <div className="truncate">
                                 {b.reason || "Unavailable"}
                               </div>
+                              {isAdminMode && (
+                                <button
+                                  type="button"
+                                  disabled={pending}
+                                  className="mt-0.5 underline disabled:opacity-50"
+                                  onClick={() => run(() => deleteBlock(b.id))}
+                                >
+                                  Remove
+                                </button>
+                              )}
                             </div>
                           ))}
                           {cellEvents.map((ev) => (
@@ -589,13 +646,51 @@ export function UnifiedSchedule({
         />
       )}
 
+      {slotDialogOpen && isAdminMode && (
+        <BookSlotDialog
+          locations={bookableLocations}
+          teams={teams}
+          coaches={coachOptions}
+          defaultCoachId={profile.id}
+          defaultTeamId={focusTeamId}
+          pickDateTime
+          defaultDate={weekStartIso}
+          pending={pending}
+          onClose={() => setSlotDialogOpen(false)}
+          onConfirmBook={(input) => {
+            setSlotDialogOpen(false);
+            run(() =>
+              createBooking({
+                resourceId: input.resourceId,
+                startsAt: input.startsAt,
+                teamId: input.teamId,
+                title: input.title,
+                coachUserId: input.coachUserId,
+              })
+            );
+          }}
+          onConfirmBlock={(input) => {
+            setSlotDialogOpen(false);
+            run(() =>
+              createBlock({
+                resourceId: input.resourceId,
+                startsAt: input.startsAt,
+                reason: input.reason,
+              })
+            );
+          }}
+        />
+      )}
+
       <p className="text-xs text-stone-500">
         Full calendar shows every team so coaches can trade. Click an event for
         full details. T3: leave drops only your team. Train with the Shoremen /
         ShoreGals: age-group sessions stay fixed.
-        {profile.role === "admin"
-          ? " Book and block open slots from Admin."
-          : ""}
+        {isAdminMode
+          ? " Use Book or block to add a cages/court booking or hold."
+          : profile.role === "admin"
+            ? " Book and block from Admin."
+            : ""}
       </p>
     </div>
   );

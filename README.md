@@ -81,7 +81,7 @@ Slots are **1 hour**. First allowlisted login creates a `profiles` row; role com
 
 ### Allowlist
 
-Only emails in `allowed_emails` can request a magic link. Seeded in `002_allowlist.sql` with head coaches plus admins (`tryouts@altbsa.org`, Chuck Zubek, Jeff Kendera).
+Only emails in `allowed_emails` can request a magic link. Seeded in `002_allowlist.sql` with head coaches plus admins (`tryouts@altbsa.org`, `treasurer@altbsa.org`, Jeff Kendera).
 
 Add someone later:
 
