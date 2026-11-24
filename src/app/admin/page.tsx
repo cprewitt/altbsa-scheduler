@@ -14,6 +14,7 @@ import type {
   Booking,
   Resource,
   ResourceBlock,
+  Team,
 } from "@/lib/types";
 
 export default async function AdminPage({
@@ -36,6 +37,7 @@ export default async function AdminPage({
     { data: bookings, error: bookingsError },
     { data: blocks, error: blocksError },
     { data: coaches, error: coachesError },
+    { data: teams, error: teamsError },
   ] = await Promise.all([
     supabase
       .from("resources")
@@ -62,6 +64,11 @@ export default async function AdminPage({
       .from("profiles")
       .select("id, email, full_name")
       .order("full_name", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("teams")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name"),
   ]);
 
   const errors = [
@@ -70,6 +77,7 @@ export default async function AdminPage({
     bookingsError?.message,
     blocksError?.message,
     coachesError?.message,
+    teamsError?.message,
   ].filter(Boolean);
 
   return (
@@ -80,7 +88,8 @@ export default async function AdminPage({
           Admin override
         </h1>
         <p className="mb-4 text-sm text-stone-600">
-          Book for a coach, cancel any booking, or block open slots.
+          Click Book to choose event name, location, team, and coach. Cancel any
+          booking or block open slots.
         </p>
         <WeekNav weekStart={weekStart} basePath="/admin" />
         {errors.length > 0 && (
@@ -98,6 +107,7 @@ export default async function AdminPage({
             profile={session.profile}
             mode="admin"
             coaches={coaches || []}
+            teams={(teams || []) as Pick<Team, "id" | "name">[]}
           />
         </div>
       </main>
