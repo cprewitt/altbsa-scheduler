@@ -65,6 +65,12 @@ export type ScheduleEventTeam = Pick<
   "id" | "name" | "age_group" | "sport" | "color"
 >;
 
+export type TeamCoachInfo = {
+  team_id: string;
+  full_name: string | null;
+  email: string;
+};
+
 export type ScheduleEvent = {
   id: string;
   resource_id: string;

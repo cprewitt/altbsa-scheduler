@@ -61,15 +61,49 @@ export function teamsOf(event: ScheduleEvent): ScheduleEventTeam[] {
   return out;
 }
 
-export function teamNamesLabel(teams: ScheduleEventTeam[]): string {
-  if (!teams.length) return "Unassigned";
+/** Age-band text from Shoremen/ShoreGals notes, e.g. "7U + 8U" or "9U–10U". */
+export function shoremenAgeBandLabel(notes: string | null): string | null {
+  if (!notes) return null;
+  const plus = notes.match(/(\d{1,2}U)\s*\+\s*(\d{1,2}U)/i);
+  if (plus) return `${plus[1].toUpperCase()} + ${plus[2].toUpperCase()}`;
+  const range = notes.match(/(\d{1,2}U)\s*[–-]\s*(\d{1,2}U)/i);
+  if (range) return `${range[1].toUpperCase()}–${range[2].toUpperCase()}`;
+  return null;
+}
+
+/**
+ * Compact team line for calendar cards.
+ * Prefer linked teams; fall back to age-band notes; otherwise "Blocked".
+ */
+export function teamNamesLabel(
+  teams: ScheduleEventTeam[],
+  notes?: string | null
+): string {
   if (teams.length === 1) return teams[0].name;
-  // T3-style: "8U Maroon vs 8U Gold" when same age
-  const ages = new Set(teams.map((t) => t.age_group));
-  if (ages.size === 1 && teams.length === 2) {
-    return `${teams[0].name.replace(/\s+Baseball|\s+Softball/g, "")} vs ${teams[1].name.replace(/\s+Baseball|\s+Softball/g, "")}`;
+  if (teams.length === 2) {
+    const ages = new Set(teams.map((t) => t.age_group));
+    if (ages.size === 1) {
+      return `${teams[0].name.replace(/\s+Baseball|\s+Softball/g, "")} vs ${teams[1].name.replace(/\s+Baseball|\s+Softball/g, "")}`;
+    }
   }
-  return teams.map((t) => t.name).join(", ");
+  if (teams.length > 2) {
+    const band = shoremenAgeBandLabel(notes ?? null);
+    if (band) return band;
+    return teams.map((t) => t.name.replace(/\s+Baseball|\s+Softball/g, "")).join(", ");
+  }
+  if (teams.length > 0) {
+    return teams.map((t) => t.name).join(", ");
+  }
+  return shoremenAgeBandLabel(notes ?? null) || "Blocked";
+}
+
+/** Full team list for the detail panel. */
+export function teamNamesDetail(
+  teams: ScheduleEventTeam[],
+  notes?: string | null
+): string {
+  if (teams.length) return teams.map((t) => t.name).join(", ");
+  return shoremenAgeBandLabel(notes ?? null) || "Blocked";
 }
 
 export function eventIncludesTeam(event: ScheduleEvent, teamId: string): boolean {
@@ -125,8 +159,9 @@ export function ageGroupsFromShoremenLabel(notes: string | null): string[] {
   if (m) return [m[1].toUpperCase(), m[2].toUpperCase()];
   const range = notes.match(/(\d{1,2}U)\s*[–-]\s*(\d{1,2}U)/i);
   if (range) {
-    const a = Number(range[1]);
-    const b = Number(range[2]);
+    // parseInt("9U", 10) → 9; Number("9U") → NaN
+    const a = parseInt(range[1], 10);
+    const b = parseInt(range[2], 10);
     if (Number.isFinite(a) && Number.isFinite(b) && b >= a) {
       const out: string[] = [];
       for (let i = a; i <= b; i++) out.push(`${i}U`);
