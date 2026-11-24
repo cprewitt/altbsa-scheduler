@@ -9,6 +9,8 @@ import {
   buildScheduleIcs,
   type ScheduleBookingRow,
 } from "@/lib/my-schedule";
+import { teamNamesLabel, teamsOf } from "@/lib/schedule-events";
+import type { ScheduleEvent } from "@/lib/types";
 
 const SEASON_START = "2027-01-01T00:00:00.000Z";
 const SEASON_END = "2027-05-01T00:00:00.000Z";
@@ -33,19 +35,77 @@ export type EmailMyScheduleResult =
     }
   | { ok: false; error: string };
 
-async function loadMyBookings(userId: string): Promise<ScheduleBookingRow[]> {
+function eventsToRows(events: ScheduleEvent[]): ScheduleBookingRow[] {
+  return events.map((ev) => {
+    const resources = Array.isArray(ev.resources)
+      ? ev.resources[0]
+      : ev.resources;
+    const teams = teamsOf(ev);
+    return {
+      id: ev.id,
+      starts_at: ev.starts_at,
+      ends_at: ev.ends_at,
+      notes: `${ev.title} · ${teamNamesLabel(teams)}`,
+      resources: resources
+        ? { name: resources.name, slug: resources.slug }
+        : { name: ev.title, slug: "event" },
+    };
+  });
+}
+
+async function loadMyTeamEvents(
+  userId: string,
+  teamId?: string
+): Promise<ScheduleBookingRow[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("bookings")
-    .select("id, starts_at, ends_at, notes, resources(name, slug)")
-    .eq("coach_user_id", userId)
+
+  let teamIds: string[] = [];
+  if (teamId) {
+    teamIds = [teamId];
+  } else {
+    const { data: links, error } = await supabase
+      .from("team_coaches")
+      .select("team_id")
+      .eq("coach_user_id", userId);
+    if (error) throw new Error(error.message);
+    teamIds = (links || []).map((l) => l.team_id);
+  }
+
+  if (!teamIds.length) {
+    // Fallback: legacy bookings owned by coach
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("id, starts_at, ends_at, notes, resources(name, slug)")
+      .eq("coach_user_id", userId)
+      .eq("status", "confirmed")
+      .gte("starts_at", SEASON_START)
+      .lt("starts_at", SEASON_END)
+      .order("starts_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data || []) as unknown as ScheduleBookingRow[];
+  }
+
+  const { data: links, error: lErr } = await supabase
+    .from("schedule_event_teams")
+    .select("event_id")
+    .in("team_id", teamIds);
+  if (lErr) throw new Error(lErr.message);
+  const eventIds = [...new Set((links || []).map((l) => l.event_id))];
+  if (!eventIds.length) return [];
+
+  const { data: events, error: eErr } = await supabase
+    .from("schedule_events")
+    .select(
+      "id, resource_id, title, starts_at, ends_at, status, attendance_policy, notes, booking_id, created_by, resources(id, slug, name), schedule_event_teams(team_id, teams(id, name, age_group, sport, color))"
+    )
+    .in("id", eventIds)
     .eq("status", "confirmed")
     .gte("starts_at", SEASON_START)
     .lt("starts_at", SEASON_END)
     .order("starts_at", { ascending: true });
+  if (eErr) throw new Error(eErr.message);
 
-  if (error) throw new Error(error.message);
-  return (data || []) as unknown as ScheduleBookingRow[];
+  return eventsToRows((events || []) as unknown as ScheduleEvent[]);
 }
 
 async function sendWithResend(input: {
@@ -94,7 +154,7 @@ async function sendWithResend(input: {
   return { ok: true };
 }
 
-export async function emailMySchedule(): Promise<EmailMyScheduleResult> {
+export async function emailMySchedule(teamId?: string): Promise<EmailMyScheduleResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -114,11 +174,11 @@ export async function emailMySchedule(): Promise<EmailMyScheduleResult> {
 
   let bookings: ScheduleBookingRow[];
   try {
-    bookings = await loadMyBookings(user.id);
+    bookings = await loadMyTeamEvents(user.id, teamId);
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Could not load your bookings.",
+      error: e instanceof Error ? e.message : "Could not load your schedule.",
     };
   }
 
@@ -126,11 +186,11 @@ export async function emailMySchedule(): Promise<EmailMyScheduleResult> {
     return {
       ok: false,
       error:
-        "No confirmed bookings found for your account in the 2027 indoor season.",
+        "No confirmed team events found for your account in the 2027 indoor season.",
     };
   }
 
-  const subject = `Your ALTBSA Anchor schedule (${bookings.length} sessions)`;
+  const subject = `Your ALTBSA schedule (${bookings.length} sessions)`;
   const text = buildScheduleEmailText(bookings, coachName, FACILITY_TZ);
   const html = buildScheduleEmailHtml(bookings, coachName, FACILITY_TZ);
   const ics = buildScheduleIcs(bookings, coachName);
@@ -140,7 +200,6 @@ export async function emailMySchedule(): Promise<EmailMyScheduleResult> {
 
   const payload = { to, subject, text, html, ics, icsFileName };
 
-  // Prefer Google Workspace (tryouts@altbsa.org) — same org mailbox coaches already trust
   const gmail = await sendWithGmailWorkspace(payload);
   if (gmail.ok) {
     return { ok: true, mode: "sent", to, count: bookings.length, via: "gmail" };

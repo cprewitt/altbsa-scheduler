@@ -9,7 +9,7 @@
  * - Soccer Shots Sat 1–3 PM
  * - BOSS volleyball Mon/Wed 4–8, Tue/Thu 6–10
  * - Easter Sun Mar 28 blackout
- * - T3 week: skip that team's gym (sample pairings)
+ * - T3 week: skip that team's gym (pairings synced with seed-t3-sessions.mjs)
  *
  * Usage: node scripts/seed-february-gym.mjs
  */
@@ -56,6 +56,8 @@ const WEEKLY = [
   { day: 0, hour: 15, email: "woodalljt3@yahoo.com", team: "10U Gold Softball" },
   { day: 0, hour: 16, email: "bjschuler12@gmail.com", team: "11U Gold Baseball" },
   { day: 0, hour: 17, email: "smoennich5@yahoo.com", team: "10U Maroon Baseball" },
+  // Sunday 6pm — moved from Fri 4pm (open; Easter blackout still applies)
+  { day: 0, hour: 18, email: "chuck.zubek@gmail.com", team: "11U Maroon Baseball" },
   // Monday late — Svihlik (Sat-cage rule N/A; Wed cages → Mon gym)
   { day: 1, hour: 20, email: "csvihlik99@gmail.com", team: "12U Maroon Softball" },
   // Tuesday — includes Sat-cage 10U Gold BB
@@ -64,20 +66,25 @@ const WEEKLY = [
   // Thursday — Sat-cage 9U Gold + 10U Maroon SB
   { day: 4, hour: 16, email: "jjavers09@jcu.edu", team: "9U Gold Baseball" },
   { day: 4, hour: 17, email: "stags22@hotmail.com", team: "10U Maroon Softball" },
-  // Friday — Sat-cage 11U Maroon + 8U Maroon (before drop-in 6pm)
-  { day: 5, hour: 16, email: "chuck.zubek@gmail.com", team: "11U Maroon Baseball" },
+  // Friday — Sat-cage 8U Maroon (before drop-in 6pm)
   { day: 5, hour: 17, email: "greg.rustad@yahoo.com", team: "8U Maroon Baseball" },
 ];
 
-/** T3 Fridays → teams that skip gym that ISO week (sample pairings) */
+/**
+ * T3 Fridays → teams that skip gym that ISO week.
+ * Keep in sync with scripts/seed-t3-sessions.mjs (baseball only; Feb 12 = 13Us).
+ */
 const T3_BY_FRIDAY = {
-  "2027-02-19": ["10U White Baseball", "9U White Baseball"],
-  "2027-02-26": ["8U Maroon Baseball", "8U Gold Baseball"],
+  "2027-02-05": ["14U Maroon Baseball"],
+  "2027-02-12": ["13U Maroon Baseball", "13U Gold Baseball"],
+  "2027-02-19": ["12U Maroon Baseball", "12U Gold Baseball"],
+  "2027-02-26": ["10U Maroon Baseball", "10U Gold Baseball"],
   "2027-03-05": ["11U Maroon Baseball", "11U Gold Baseball"],
-  "2027-03-12": ["12U Maroon Baseball", "12U Gold Baseball"],
-  "2027-03-19": ["13U Maroon Baseball", "13U Gold Baseball"],
-  "2027-04-02": ["14U Maroon Baseball", "7U Maroon Baseball"],
-  "2027-04-09": ["10U Maroon Softball", "10U Gold Softball"],
+  "2027-03-12": ["9U Maroon Baseball", "9U Gold Baseball"],
+  "2027-03-19": ["8U Maroon Baseball", "8U Gold Baseball"],
+  // Mar 26 T3 is a placeholder — do not skip gym that week until pairings are final
+  "2027-04-02": ["10U Gold Baseball", "10U White Baseball"],
+  "2027-04-09": ["9U Gold Baseball", "9U White Baseball"],
 };
 
 const EASTER = "2027-03-28";
