@@ -34,12 +34,15 @@ const NOTE_PREFIX = "Shoremen · ";
 /** Admin holder until per-team coach ownership is assigned. */
 const HOLDER_EMAIL = "tryouts@altbsa.org";
 
-/** Locked nights (Chuck Nov 2 Scheduling Call Notes). */
+/**
+ * Locked nights (Chuck Nov 2 Scheduling Call Notes).
+ * 2026-11-20: Kevin Collins — Fri Jan 29 → Tue Jan 26 (ALHS wrestling conflict).
+ */
 export const SHOREMEN_DATES = [
   "2027-01-08",
   "2027-01-15",
   "2027-01-19",
-  "2027-01-29",
+  "2027-01-26",
   "2027-02-02",
   "2027-02-12",
 ];
@@ -167,7 +170,12 @@ async function main() {
   console.log("Done. Open /schedule → Other → Train with the Shoremen.");
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isMain =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMain) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

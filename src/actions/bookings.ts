@@ -9,6 +9,9 @@ export async function createBooking(input: {
   startsAt: string;
   /** Admin only: book on behalf of this coach profile id */
   coachUserId?: string;
+  /** Team for the unified event card (required for smooth multi-team coaches) */
+  teamId?: string;
+  title?: string;
 }) {
   const supabase = await createClient();
   const {
@@ -45,19 +48,61 @@ export async function createBooking(input: {
 
   const endsAt = slotEndIso(input.startsAt);
 
-  const { error } = await supabase.from("bookings").insert({
-    resource_id: input.resourceId,
-    coach_user_id: coachUserId,
-    starts_at: input.startsAt,
-    ends_at: endsAt,
-    status: "confirmed",
-  });
+  const { data: resource } = await supabase
+    .from("resources")
+    .select("slug, name")
+    .eq("id", input.resourceId)
+    .maybeSingle();
+
+  const { data: booking, error } = await supabase
+    .from("bookings")
+    .insert({
+      resource_id: input.resourceId,
+      coach_user_id: coachUserId,
+      starts_at: input.startsAt,
+      ends_at: endsAt,
+      status: "confirmed",
+      team_id: input.teamId || null,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     if (error.code === "23P01" || /overlap|exclude|blocked/i.test(error.message)) {
       return { error: "That slot is no longer available." };
     }
     return { error: error.message };
+  }
+
+  // Mirror into unified schedule_events when the table exists
+  const title =
+    input.title ||
+    (resource?.slug === "cages"
+      ? "Batting cages"
+      : resource?.slug === "court"
+        ? "Gym"
+        : resource?.name || "Practice");
+
+  const { data: ev, error: evErr } = await supabase
+    .from("schedule_events")
+    .insert({
+      resource_id: input.resourceId,
+      title,
+      starts_at: input.startsAt,
+      ends_at: endsAt,
+      status: "confirmed",
+      attendance_policy: "bookable",
+      booking_id: booking.id,
+      created_by: coachUserId,
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (!evErr && ev?.id && input.teamId) {
+    await supabase.from("schedule_event_teams").insert({
+      event_id: ev.id,
+      team_id: input.teamId,
+    });
   }
 
   revalidatePath("/schedule");
@@ -101,6 +146,12 @@ export async function cancelBooking(bookingId: string) {
     .eq("id", bookingId);
 
   if (error) return { error: error.message };
+
+  await supabase
+    .from("schedule_events")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("booking_id", bookingId)
+    .eq("status", "confirmed");
 
   revalidatePath("/schedule");
   revalidatePath("/admin");

@@ -1,5 +1,7 @@
 export type UserRole = "coach" | "admin";
 export type BookingStatus = "confirmed" | "cancelled";
+export type SportKind = "baseball" | "softball";
+export type EventAttendancePolicy = "bookable" | "team_optional" | "fixed";
 
 export type Profile = {
   id: string;
@@ -35,6 +37,7 @@ export type Booking = {
   ends_at: string;
   status: BookingStatus;
   notes: string | null;
+  team_id?: string | null;
   /** Supabase embed may return object or (rarely) array depending on inference */
   profiles?: BookingProfile | BookingProfile[] | null;
 };
@@ -46,4 +49,35 @@ export type ResourceBlock = {
   ends_at: string;
   reason: string | null;
   created_by: string | null;
+};
+
+export type Team = {
+  id: string;
+  name: string;
+  age_group: string;
+  sport: SportKind;
+  color: string | null;
+  is_active: boolean;
+};
+
+export type ScheduleEventTeam = Pick<
+  Team,
+  "id" | "name" | "age_group" | "sport" | "color"
+>;
+
+export type ScheduleEvent = {
+  id: string;
+  resource_id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  status: BookingStatus;
+  attendance_policy: EventAttendancePolicy;
+  notes: string | null;
+  booking_id: string | null;
+  created_by: string | null;
+  resources?: Pick<Resource, "id" | "slug" | "name"> | Pick<Resource, "id" | "slug" | "name">[] | null;
+  schedule_event_teams?:
+    | { team_id: string; teams: ScheduleEventTeam | ScheduleEventTeam[] | null }[]
+    | null;
 };

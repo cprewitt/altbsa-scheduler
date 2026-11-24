@@ -20,6 +20,14 @@ This app lives in `altbsa-scheduler/` as a **separate** Next.js project from the
    # Or paste each file into the SQL editor and Run
    supabase/migrations/001_initial.sql
    supabase/migrations/002_allowlist.sql
+   supabase/migrations/003_other_resources.sql
+   supabase/migrations/004_teams_and_events.sql
+   ```
+
+   After `004`, backfill teams/events from live bookings:
+
+   ```bash
+   node scripts/seed-teams-and-events.mjs
    ```
 
 3. Copy env template and fill in real project values (do not invent secrets):
@@ -58,9 +66,11 @@ The migration seeds:
 | ------------- | ------------------------ | ------------------------------------------ |
 | `cages`       | Cages                    | All cages booked as **one** pooled unit    |
 | `court`       | Court                    | Single court resource (may be turfed later)|
-| `shoremen`    | Train with the Shoremen  | Grouped under **Other** tab in the UI      |
-| `shoregals`   | Train with the ShoreGals | Grouped under **Other** tab in the UI      |
-| `t3`          | T3                       | Grouped under **Other** tab in the UI      |
+| `shoremen`    | Train with the Shoremen  | Age-group events (fixed attendance)        |
+| `shoregals`   | Train with the ShoreGals | Age-group events (fixed attendance)        |
+| `t3`          | T3                       | Paired-team events (coach may leave one)   |
+
+Schedule UI: unified week **Full calendar** (all locations) + **My team list**, with location / sport / age filters. `teams` + `schedule_events` are the display model; cages/court still use `bookings` for slot locking. Future Anchor facility API can sync into `schedule_events`.
 
 Default open hours (facility-local `America/New_York`):
 

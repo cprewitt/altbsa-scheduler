@@ -55,12 +55,13 @@ export const T3_SESSIONS = [
     teams: ["12U Maroon Baseball", "12U Gold Baseball"],
   },
   {
+    // Chuck 2026-11-19: 10U on Feb 26, 11U on Mar 5
     date: "2027-02-26",
-    teams: ["11U Maroon Baseball", "11U Gold Baseball"],
+    teams: ["10U Maroon Baseball", "10U Gold Baseball"],
   },
   {
     date: "2027-03-05",
-    teams: ["10U Maroon Baseball", "10U Gold Baseball"],
+    teams: ["11U Maroon Baseball", "11U Gold Baseball"],
   },
   {
     date: "2027-03-12",
@@ -69,6 +70,11 @@ export const T3_SESSIONS = [
   {
     date: "2027-03-19",
     teams: ["8U Maroon Baseball", "8U Gold Baseball"],
+  },
+  {
+    // Was open (Easter weekend Fri); hold for 12U for now — may reassign later
+    date: "2027-03-26",
+    teams: ["12U Maroon Baseball", "12U Gold Baseball"],
   },
   {
     date: "2027-04-02",
