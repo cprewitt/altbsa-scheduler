@@ -5,6 +5,10 @@ import { parse } from "date-fns";
 import { createBooking, cancelBooking } from "@/actions/bookings";
 import { leaveEventTeam } from "@/actions/schedule-events";
 import {
+  BookSlotDialog,
+  type BookSlotLocationOption,
+} from "@/components/BookSlotDialog";
+import {
   DEFAULT_EVENT_TITLE,
   LOCATION_CHIP_CLASS,
   LOCATION_SLUGS,
@@ -110,8 +114,11 @@ export function UnifiedSchedule({
   const [sport, setSport] = useState<"all" | "baseball" | "softball">("all");
   const [ageGroup, setAgeGroup] = useState<string>("all");
   const [focusTeamId, setFocusTeamId] = useState<string | null>(autoFocus);
-  const [bookLocation, setBookLocation] = useState<"cages" | "court">("cages");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [bookDraft, setBookDraft] = useState<{
+    timeLabel: string;
+    locations: BookSlotLocationOption[];
+  } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -249,35 +256,47 @@ export function UnifiedSchedule({
     });
   }
 
-  function openBookable(day: Date, hour: number): string | null {
-    if (!locations.has(bookLocation)) return null;
-    const resource = resourceBySlug[bookLocation];
-    if (!resource) return null;
-    const open = openSlotStarts(day, resource.id, windows).some(
-      (s) => s.getHours() === hour
-    );
-    if (!open) return null;
-    const local = new Date(day);
-    local.setHours(hour, 0, 0, 0);
-    const startsAt = localSlotToUtcIso(local);
-    const endLocal = new Date(day);
-    endLocal.setHours(hour + 1, 0, 0, 0);
-    const endsAt = localSlotToUtcIso(endLocal);
-    const blocked = blocks.some(
-      (b) =>
-        b.resource_id === resource.id &&
-        rangesOverlap(b.starts_at, b.ends_at, startsAt, endsAt)
-    );
-    if (blocked) return null;
-    const taken = events.some(
-      (ev) =>
-        ev.resource_id === resource.id &&
-        ev.status === "confirmed" &&
-        ev.starts_at >= startsAt &&
-        ev.starts_at < endsAt
-    );
-    if (taken) return null;
-    return startsAt;
+  function openBookableLocations(
+    day: Date,
+    hour: number
+  ): BookSlotLocationOption[] {
+    const out: BookSlotLocationOption[] = [];
+    for (const slug of ["cages", "court"] as const) {
+      if (!locations.has(slug)) continue;
+      const resource = resourceBySlug[slug];
+      if (!resource) continue;
+      const open = openSlotStarts(day, resource.id, windows).some(
+        (s) => s.getHours() === hour
+      );
+      if (!open) continue;
+      const local = new Date(day);
+      local.setHours(hour, 0, 0, 0);
+      const startsAt = localSlotToUtcIso(local);
+      const endLocal = new Date(day);
+      endLocal.setHours(hour + 1, 0, 0, 0);
+      const endsAt = localSlotToUtcIso(endLocal);
+      const blocked = blocks.some(
+        (b) =>
+          b.resource_id === resource.id &&
+          rangesOverlap(b.starts_at, b.ends_at, startsAt, endsAt)
+      );
+      if (blocked) continue;
+      const taken = events.some(
+        (ev) =>
+          ev.resource_id === resource.id &&
+          ev.status === "confirmed" &&
+          ev.starts_at >= startsAt &&
+          ev.starts_at < endsAt
+      );
+      if (taken) continue;
+      out.push({
+        resourceId: resource.id,
+        slug,
+        name: resource.name,
+        startsAt,
+      });
+    }
+    return out;
   }
 
   const showTeamPicker = myTeams.length > 1;
@@ -430,21 +449,6 @@ export function UnifiedSchedule({
             ))}
           </select>
         </label>
-        {layout === "grid" && (
-          <label className="flex items-center gap-2">
-            <span className="font-semibold text-stone-600">Book open</span>
-            <select
-              value={bookLocation}
-              onChange={(e) =>
-                setBookLocation(e.target.value as "cages" | "court")
-              }
-              className="rounded border border-stone-300 bg-white px-2 py-1"
-            >
-              <option value="cages">Cages</option>
-              <option value="court">Court</option>
-            </select>
-          </label>
-        )}
       </div>
 
       {error && (
@@ -589,7 +593,10 @@ export function UnifiedSchedule({
                   {days.map((day) => {
                     const cellEvents = eventsAt(day, hour);
                     const cellBlocks = blocksAt(day, hour);
-                    const openAt = openBookable(day, hour);
+                    const openLocs = openBookableLocations(day, hour);
+                    const canBook =
+                      openLocs.length > 0 &&
+                      (myTeams.length > 0 || profile.role === "admin");
                     return (
                       <td
                         key={`${day.toISOString()}-${hour}`}
@@ -610,23 +617,19 @@ export function UnifiedSchedule({
                           {cellEvents.map((ev) => (
                             <EventCard key={ev.id} ev={ev} compact />
                           ))}
-                          {openAt && focusTeamId && (
+                          {canBook && (
                             <button
                               type="button"
                               disabled={pending}
                               className="rounded border border-dashed border-stone-300 px-1.5 py-1 text-[11px] text-stone-600 hover:border-[var(--maroon)] hover:text-[var(--maroon)]"
                               onClick={() =>
-                                run(() =>
-                                  createBooking({
-                                    resourceId: resourceBySlug[bookLocation].id,
-                                    startsAt: openAt,
-                                    teamId: focusTeamId,
-                                    title: DEFAULT_EVENT_TITLE[bookLocation],
-                                  })
-                                )
+                                setBookDraft({
+                                  timeLabel: `${formatDayHeader(day)} · ${formatHourLabel(hour)}`,
+                                  locations: openLocs,
+                                })
                               }
                             >
-                              Book {bookLocation}
+                              Book…
                             </button>
                           )}
                         </div>
@@ -656,9 +659,37 @@ export function UnifiedSchedule({
         />
       )}
 
+      {bookDraft && (
+        <BookSlotDialog
+          timeLabel={bookDraft.timeLabel}
+          locations={bookDraft.locations}
+          teams={
+            profile.role === "admin" && myTeams.length === 0
+              ? teams
+              : myTeams.length
+                ? myTeams
+                : teams
+          }
+          defaultTeamId={focusTeamId}
+          pending={pending}
+          onClose={() => setBookDraft(null)}
+          onConfirm={(input) => {
+            setBookDraft(null);
+            run(() =>
+              createBooking({
+                resourceId: input.resourceId,
+                startsAt: input.startsAt,
+                teamId: input.teamId,
+                title: input.title,
+              })
+            );
+          }}
+        />
+      )}
+
       <p className="text-xs text-stone-500">
         Full calendar shows every team so coaches can trade. Click an event for
-        full details. You can book open cages/court slots and cancel your own.
+        full details. Book… opens a form for location, event name, and team.
         T3: leave drops only your team. Train with the Shoremen / ShoreGals:
         age-group sessions stay fixed.
         {profile.role === "admin" ? " Admins can change anyone from Admin." : ""}
