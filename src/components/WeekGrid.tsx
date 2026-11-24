@@ -7,8 +7,8 @@ import { createBlock, deleteBlock } from "@/actions/blocks";
 import {
   BookSlotDialog,
   type BookSlotLocationOption,
+  type SlotDialogAction,
 } from "@/components/BookSlotDialog";
-import { DEFAULT_EVENT_TITLE, type LocationSlug } from "@/lib/schedule-events";
 import {
   FACILITY_TZ,
   formatDayHeader,
@@ -111,6 +111,7 @@ export function WeekGrid({
   const [bookDraft, setBookDraft] = useState<{
     timeLabel: string;
     locations: BookSlotLocationOption[];
+    action: SlotDialogAction;
   } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -218,6 +219,73 @@ export function WeekGrid({
 
   const selected = resources.find((r) => r.id === resourceId);
 
+  function openLocationsForSlot(
+    day: Date,
+    hour: number,
+    startsAt: string
+  ): BookSlotLocationOption[] {
+    if (!selected) return [];
+    const locs: BookSlotLocationOption[] = [];
+    const seen = new Set<string>();
+    const pushIfOpen = (r: Resource | null) => {
+      if (!r || seen.has(r.id)) return;
+      const open = openSlotStarts(day, r.id, windows).some(
+        (s) => s.getHours() === hour
+      );
+      if (!open) return;
+      const endLocal = new Date(day);
+      endLocal.setHours(hour + 1, 0, 0, 0);
+      const endsAt = localSlotToUtcIso(endLocal);
+      const blocked = blocks.some(
+        (b) =>
+          b.resource_id === r.id &&
+          rangesOverlap(b.starts_at, b.ends_at, startsAt, endsAt)
+      );
+      if (blocked) return;
+      const taken = bookings.some(
+        (b) =>
+          b.resource_id === r.id &&
+          b.status === "confirmed" &&
+          b.starts_at >= startsAt &&
+          b.starts_at < endsAt
+      );
+      if (taken) return;
+      seen.add(r.id);
+      locs.push({
+        resourceId: r.id,
+        slug: r.slug,
+        name: r.name,
+        startsAt,
+      });
+    };
+    pushIfOpen(selected);
+    pushIfOpen(cages);
+    pushIfOpen(court);
+    if (!locs.length) {
+      locs.push({
+        resourceId,
+        slug: selected.slug,
+        name: selected.name,
+        startsAt,
+      });
+    }
+    return locs;
+  }
+
+  function openSlotDialog(
+    day: Date,
+    hour: number,
+    startsAt: string,
+    action: SlotDialogAction
+  ) {
+    if (!showBookDialog || !selected) return;
+    setBookDraft({
+      timeLabel: `${formatDayHeader(day)} · ${formatHourLabel(hour)}`,
+      locations: openLocationsForSlot(day, hour, startsAt),
+      action,
+    });
+  }
+
   const viewTabs: { id: ViewId; label: string; available: boolean }[] = [
     { id: "cages", label: "Cages", available: !!cages },
     { id: "court", label: "Court", available: !!court },
@@ -277,8 +345,10 @@ export function WeekGrid({
 
       <p className="text-sm text-stone-600">
         {selected?.description || selected?.name || "Select a schedule"} · times
-        in {FACILITY_TZ} · 1-hour slots · click Book to fill event details
-        {showBookDialog ? " · block or cancel anyone" : ""}
+        in {FACILITY_TZ} · 1-hour slots
+        {showBookDialog
+          ? " · Book or Block opens the slot form · cancel anyone"
+          : ""}
       </p>
       {showBookDialog && coachOptions.length <= 1 && (
         <p className="text-sm text-amber-900">
@@ -337,89 +407,12 @@ export function WeekGrid({
                           disabled={pending}
                           isAdmin={isAdmin}
                           mode={mode}
-                          onBook={(startsAt) => {
-                            if (!selected) return;
-                            if (showBookDialog) {
-                              const locs: BookSlotLocationOption[] = [];
-                              const seen = new Set<string>();
-                              const pushIfOpen = (r: Resource | null) => {
-                                if (!r || seen.has(r.id)) return;
-                                const open = openSlotStarts(
-                                  day,
-                                  r.id,
-                                  windows
-                                ).some((s) => s.getHours() === hour);
-                                if (!open) return;
-                                const endLocal = new Date(day);
-                                endLocal.setHours(hour + 1, 0, 0, 0);
-                                const endsAt = localSlotToUtcIso(endLocal);
-                                const blocked = blocks.some(
-                                  (b) =>
-                                    b.resource_id === r.id &&
-                                    rangesOverlap(
-                                      b.starts_at,
-                                      b.ends_at,
-                                      startsAt,
-                                      endsAt
-                                    )
-                                );
-                                if (blocked) return;
-                                const taken = bookings.some(
-                                  (b) =>
-                                    b.resource_id === r.id &&
-                                    b.status === "confirmed" &&
-                                    b.starts_at >= startsAt &&
-                                    b.starts_at < endsAt
-                                );
-                                if (taken) return;
-                                seen.add(r.id);
-                                locs.push({
-                                  resourceId: r.id,
-                                  slug: r.slug,
-                                  name: r.name,
-                                  startsAt,
-                                });
-                              };
-                              // Prefer cages/court choices; keep current resource first
-                              pushIfOpen(selected);
-                              pushIfOpen(cages);
-                              pushIfOpen(court);
-                              setBookDraft({
-                                timeLabel: `${formatDayHeader(day)} · ${formatHourLabel(hour)}`,
-                                locations: locs.length
-                                  ? locs
-                                  : [
-                                      {
-                                        resourceId,
-                                        slug: selected.slug,
-                                        name: selected.name,
-                                        startsAt,
-                                      },
-                                    ],
-                              });
-                              return;
-                            }
-                            const slug = selected.slug as LocationSlug;
-                            run(() =>
-                              createBooking({
-                                resourceId,
-                                startsAt,
-                                title:
-                                  slug in DEFAULT_EVENT_TITLE
-                                    ? DEFAULT_EVENT_TITLE[slug]
-                                    : selected.name,
-                              })
-                            );
-                          }}
+                          onBook={(startsAt) =>
+                            openSlotDialog(day, hour, startsAt, "book")
+                          }
                           onCancel={(id) => run(() => cancelBooking(id))}
                           onBlock={(startsAt) =>
-                            run(() =>
-                              createBlock({
-                                resourceId,
-                                startsAt,
-                                reason: "Admin block",
-                              })
-                            )
+                            openSlotDialog(day, hour, startsAt, "block")
                           }
                           onUnblock={(id) => run(() => deleteBlock(id))}
                         />
@@ -439,10 +432,11 @@ export function WeekGrid({
           locations={bookDraft.locations}
           teams={teams}
           coaches={coachOptions}
+          defaultAction={bookDraft.action}
           defaultCoachId={profile.id}
           pending={pending}
           onClose={() => setBookDraft(null)}
-          onConfirm={(input) => {
+          onConfirmBook={(input) => {
             setBookDraft(null);
             run(() =>
               createBooking({
@@ -451,6 +445,16 @@ export function WeekGrid({
                 teamId: input.teamId,
                 title: input.title,
                 coachUserId: input.coachUserId,
+              })
+            );
+          }}
+          onConfirmBlock={(input) => {
+            setBookDraft(null);
+            run(() =>
+              createBlock({
+                resourceId: input.resourceId,
+                startsAt: input.startsAt,
+                reason: input.reason,
               })
             );
           }}

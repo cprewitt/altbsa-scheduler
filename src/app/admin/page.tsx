@@ -88,8 +88,8 @@ export default async function AdminPage({
           Admin override
         </h1>
         <p className="mb-4 text-sm text-stone-600">
-          Click Book to choose event name, location, team, and coach. Cancel any
-          booking or block open slots.
+          Use Book or Block on an open slot — both open the Book slot form
+          (switch Book / Block inside). Cancel any booking or remove blocks.
         </p>
         <WeekNav weekStart={weekStart} basePath="/admin" />
         {errors.length > 0 && (

@@ -14,6 +14,8 @@ export type BookSlotLocationOption = {
   startsAt: string;
 };
 
+export type SlotDialogAction = "book" | "block";
+
 type CoachOption = Pick<Profile, "id" | "email" | "full_name">;
 
 type Props = {
@@ -22,16 +24,22 @@ type Props = {
   teams: Pick<Team, "id" | "name">[];
   /** When set, show coach picker (admin book-on-behalf). */
   coaches?: CoachOption[];
+  defaultAction?: SlotDialogAction;
   defaultTeamId?: string | null;
   defaultCoachId?: string;
   pending?: boolean;
   onClose: () => void;
-  onConfirm: (input: {
+  onConfirmBook: (input: {
     resourceId: string;
     startsAt: string;
     teamId: string;
     title: string;
     coachUserId?: string;
+  }) => void;
+  onConfirmBlock: (input: {
+    resourceId: string;
+    startsAt: string;
+    reason: string;
   }) => void;
 };
 
@@ -47,13 +55,16 @@ export function BookSlotDialog({
   locations,
   teams,
   coaches,
+  defaultAction = "book",
   defaultTeamId,
   defaultCoachId,
   pending,
   onClose,
-  onConfirm,
+  onConfirmBook,
+  onConfirmBlock,
 }: Props) {
   const first = locations[0];
+  const [action, setAction] = useState<SlotDialogAction>(defaultAction);
   const [resourceId, setResourceId] = useState(first?.resourceId || "");
   const [title, setTitle] = useState(
     first ? defaultTitleForSlug(first.slug) : "Practice"
@@ -62,7 +73,12 @@ export function BookSlotDialog({
   const [coachUserId, setCoachUserId] = useState(
     defaultCoachId || coaches?.[0]?.id || ""
   );
+  const [reason, setReason] = useState("Admin block");
   const [touchedTitle, setTouchedTitle] = useState(false);
+
+  useEffect(() => {
+    setAction(defaultAction);
+  }, [defaultAction]);
 
   useEffect(() => {
     const loc = locations.find((l) => l.resourceId === resourceId) || locations[0];
@@ -76,11 +92,13 @@ export function BookSlotDialog({
     [locations, resourceId]
   );
 
-  const canSubmit =
+  const canBook =
     !!selected &&
     !!teamId &&
     title.trim().length > 0 &&
     (!coaches?.length || !!coachUserId);
+
+  const canBlock = !!selected && reason.trim().length > 0;
 
   return (
     <div
@@ -113,6 +131,28 @@ export function BookSlotDialog({
           </button>
         </div>
 
+        <div className="mt-3 flex rounded border border-stone-300 overflow-hidden">
+          {(
+            [
+              ["book", "Book"],
+              ["block", "Block"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setAction(id)}
+              className={
+                action === id
+                  ? "flex-1 bg-[var(--maroon)] px-3 py-1.5 text-sm font-semibold text-white"
+                  : "flex-1 bg-white px-3 py-1.5 text-sm font-semibold text-[var(--ink)] hover:bg-stone-50"
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="mt-4 grid gap-3 text-sm">
           <label className="grid gap-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
@@ -135,58 +175,75 @@ export function BookSlotDialog({
             </select>
           </label>
 
-          <label className="grid gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-              Event name
-            </span>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => {
-                setTouchedTitle(true);
-                setTitle(e.target.value);
-              }}
-              className="rounded border border-stone-300 bg-white px-2 py-1.5"
-              placeholder="e.g. Batting cages"
-            />
-          </label>
+          {action === "book" ? (
+            <>
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                  Event name
+                </span>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => {
+                    setTouchedTitle(true);
+                    setTitle(e.target.value);
+                  }}
+                  className="rounded border border-stone-300 bg-white px-2 py-1.5"
+                  placeholder="e.g. Batting cages"
+                />
+              </label>
 
-          <label className="grid gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-              Team
-            </span>
-            <select
-              value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
-              className="rounded border border-stone-300 bg-white px-2 py-1.5"
-            >
-              {teams.length === 0 && (
-                <option value="">No teams available</option>
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                  Team
+                </span>
+                <select
+                  value={teamId}
+                  onChange={(e) => setTeamId(e.target.value)}
+                  className="rounded border border-stone-300 bg-white px-2 py-1.5"
+                >
+                  {teams.length === 0 && (
+                    <option value="">No teams available</option>
+                  )}
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {coaches && coaches.length > 0 && (
+                <label className="grid gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                    Coach
+                  </span>
+                  <select
+                    value={coachUserId}
+                    onChange={(e) => setCoachUserId(e.target.value)}
+                    className="rounded border border-stone-300 bg-white px-2 py-1.5"
+                  >
+                    {coaches.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.full_name || c.email}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               )}
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {coaches && coaches.length > 0 && (
+            </>
+          ) : (
             <label className="grid gap-1">
               <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-                Coach
+                Reason
               </span>
-              <select
-                value={coachUserId}
-                onChange={(e) => setCoachUserId(e.target.value)}
+              <input
+                type="text"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
                 className="rounded border border-stone-300 bg-white px-2 py-1.5"
-              >
-                {coaches.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.full_name || c.email}
-                  </option>
-                ))}
-              </select>
+                placeholder="e.g. Facility hold"
+              />
             </label>
           )}
         </div>
@@ -199,23 +256,41 @@ export function BookSlotDialog({
           >
             Cancel
           </button>
-          <button
-            type="button"
-            disabled={!canSubmit || pending}
-            className="rounded bg-[var(--maroon)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-            onClick={() => {
-              if (!selected || !teamId || !title.trim()) return;
-              onConfirm({
-                resourceId: selected.resourceId,
-                startsAt: selected.startsAt,
-                teamId,
-                title: title.trim(),
-                coachUserId: coaches?.length ? coachUserId : undefined,
-              });
-            }}
-          >
-            {pending ? "Booking…" : "Book"}
-          </button>
+          {action === "book" ? (
+            <button
+              type="button"
+              disabled={!canBook || pending}
+              className="rounded bg-[var(--maroon)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              onClick={() => {
+                if (!selected || !teamId || !title.trim()) return;
+                onConfirmBook({
+                  resourceId: selected.resourceId,
+                  startsAt: selected.startsAt,
+                  teamId,
+                  title: title.trim(),
+                  coachUserId: coaches?.length ? coachUserId : undefined,
+                });
+              }}
+            >
+              {pending ? "Booking…" : "Book"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!canBlock || pending}
+              className="rounded bg-[var(--ink)] px-3 py-1.5 text-sm font-semibold text-[var(--gold)] disabled:opacity-50"
+              onClick={() => {
+                if (!selected || !reason.trim()) return;
+                onConfirmBlock({
+                  resourceId: selected.resourceId,
+                  startsAt: selected.startsAt,
+                  reason: reason.trim(),
+                });
+              }}
+            >
+              {pending ? "Blocking…" : "Block"}
+            </button>
+          )}
         </div>
       </div>
     </div>
