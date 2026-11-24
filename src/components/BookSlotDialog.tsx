@@ -5,13 +5,15 @@ import {
   DEFAULT_EVENT_TITLE,
   type LocationSlug,
 } from "@/lib/schedule-events";
+import { formatHourLabel, localSlotToUtcIso } from "@/lib/time";
 import type { Profile, Team } from "@/lib/types";
 
 export type BookSlotLocationOption = {
   resourceId: string;
   slug: string;
   name: string;
-  startsAt: string;
+  /** Pre-filled when opened from a grid cell; omitted when picking date/time. */
+  startsAt?: string;
 };
 
 export type SlotDialogAction = "book" | "block";
@@ -19,7 +21,7 @@ export type SlotDialogAction = "book" | "block";
 type CoachOption = Pick<Profile, "id" | "email" | "full_name">;
 
 type Props = {
-  timeLabel: string;
+  timeLabel?: string;
   locations: BookSlotLocationOption[];
   teams: Pick<Team, "id" | "name">[];
   /** When set, show coach picker (admin book-on-behalf). */
@@ -27,6 +29,10 @@ type Props = {
   defaultAction?: SlotDialogAction;
   defaultTeamId?: string | null;
   defaultCoachId?: string;
+  /** Let admin choose date + hour instead of a preselected slot. */
+  pickDateTime?: boolean;
+  defaultDate?: string;
+  hourOptions?: number[];
   pending?: boolean;
   onClose: () => void;
   onConfirmBook: (input: {
@@ -50,6 +56,12 @@ function defaultTitleForSlug(slug: string): string {
   return "Practice";
 }
 
+function wallClockToStartsAt(dateYmd: string, hour: number): string {
+  const [y, m, d] = dateYmd.split("-").map(Number);
+  const local = new Date(y, m - 1, d, hour, 0, 0, 0);
+  return localSlotToUtcIso(local);
+}
+
 export function BookSlotDialog({
   timeLabel,
   locations,
@@ -58,6 +70,9 @@ export function BookSlotDialog({
   defaultAction = "book",
   defaultTeamId,
   defaultCoachId,
+  pickDateTime = false,
+  defaultDate,
+  hourOptions = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
   pending,
   onClose,
   onConfirmBook,
@@ -75,10 +90,18 @@ export function BookSlotDialog({
   );
   const [reason, setReason] = useState("Admin block");
   const [touchedTitle, setTouchedTitle] = useState(false);
+  const [dateYmd, setDateYmd] = useState(
+    defaultDate || new Date().toISOString().slice(0, 10)
+  );
+  const [hour, setHour] = useState(hourOptions[0] ?? 17);
 
   useEffect(() => {
     setAction(defaultAction);
   }, [defaultAction]);
+
+  useEffect(() => {
+    if (defaultDate) setDateYmd(defaultDate);
+  }, [defaultDate]);
 
   useEffect(() => {
     const loc = locations.find((l) => l.resourceId === resourceId) || locations[0];
@@ -92,13 +115,22 @@ export function BookSlotDialog({
     [locations, resourceId]
   );
 
+  const startsAt = useMemo(() => {
+    if (pickDateTime) {
+      if (!dateYmd || !Number.isFinite(hour)) return null;
+      return wallClockToStartsAt(dateYmd, hour);
+    }
+    return selected?.startsAt || null;
+  }, [pickDateTime, dateYmd, hour, selected]);
+
   const canBook =
     !!selected &&
+    !!startsAt &&
     !!teamId &&
     title.trim().length > 0 &&
     (!coaches?.length || !!coachUserId);
 
-  const canBlock = !!selected && reason.trim().length > 0;
+  const canBlock = !!selected && !!startsAt && reason.trim().length > 0;
 
   return (
     <div
@@ -120,7 +152,13 @@ export function BookSlotDialog({
             >
               Book slot
             </h2>
-            <p className="mt-0.5 text-sm text-stone-600">{timeLabel}</p>
+            {timeLabel ? (
+              <p className="mt-0.5 text-sm text-stone-600">{timeLabel}</p>
+            ) : (
+              <p className="mt-0.5 text-sm text-stone-600">
+                Choose book or block, then fill the details.
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -174,6 +212,38 @@ export function BookSlotDialog({
               ))}
             </select>
           </label>
+
+          {pickDateTime && (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                  Date
+                </span>
+                <input
+                  type="date"
+                  value={dateYmd}
+                  onChange={(e) => setDateYmd(e.target.value)}
+                  className="rounded border border-stone-300 bg-white px-2 py-1.5"
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                  Time
+                </span>
+                <select
+                  value={hour}
+                  onChange={(e) => setHour(Number(e.target.value))}
+                  className="rounded border border-stone-300 bg-white px-2 py-1.5"
+                >
+                  {hourOptions.map((h) => (
+                    <option key={h} value={h}>
+                      {formatHourLabel(h)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
 
           {action === "book" ? (
             <>
@@ -262,10 +332,10 @@ export function BookSlotDialog({
               disabled={!canBook || pending}
               className="rounded bg-[var(--maroon)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               onClick={() => {
-                if (!selected || !teamId || !title.trim()) return;
+                if (!selected || !startsAt || !teamId || !title.trim()) return;
                 onConfirmBook({
                   resourceId: selected.resourceId,
-                  startsAt: selected.startsAt,
+                  startsAt,
                   teamId,
                   title: title.trim(),
                   coachUserId: coaches?.length ? coachUserId : undefined,
@@ -280,10 +350,10 @@ export function BookSlotDialog({
               disabled={!canBlock || pending}
               className="rounded bg-[var(--ink)] px-3 py-1.5 text-sm font-semibold text-[var(--gold)] disabled:opacity-50"
               onClick={() => {
-                if (!selected || !reason.trim()) return;
+                if (!selected || !startsAt || !reason.trim()) return;
                 onConfirmBlock({
                   resourceId: selected.resourceId,
-                  startsAt: selected.startsAt,
+                  startsAt,
                   reason: reason.trim(),
                 });
               }}

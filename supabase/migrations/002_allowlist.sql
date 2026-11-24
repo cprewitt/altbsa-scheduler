@@ -38,7 +38,7 @@ insert into public.allowed_emails (email, full_name, intended_role, notes) value
   ('kennethremymd@gmail.com', 'Ken Remy', 'coach', '9U White'),
   ('dannyw43@gmail.com', 'Danny White', 'coach', '10U Gold'),
   ('awruda@gmail.com', 'Andrew Ruda', 'coach', '10U White'),
-  ('chuck.zubek@gmail.com', 'Chuck Zubek', 'admin', '11U Maroon; Treasurer'),
+  ('chuck.zubek@gmail.com', 'Chuck Zubek', 'coach', '11U Maroon'),
   ('bjschuler12@gmail.com', 'Brendan Shuler', 'coach', '11U Gold'),
   ('mbrackmanjr@gmail.com', 'Mike Brackman', 'coach', '12U Maroon'),
   ('robert.lomax21@gmail.com', 'Rob Lomax', 'coach', '12U Gold'),
@@ -53,7 +53,8 @@ insert into public.allowed_emails (email, full_name, intended_role, notes) value
   ('michael@textbookpainting.com', 'Michael Murray', 'coach', '14U Maroon softball'),
   -- Admins (non-coach or org accounts)
   ('jkendera78@gmail.com', 'Jeff Kendera', 'admin', 'Facilities'),
-  ('tryouts@altbsa.org', 'Chris Prewitt', 'admin', 'President / ops')
+  ('tryouts@altbsa.org', 'Chris Prewitt', 'admin', 'President / ops'),
+  ('treasurer@altbsa.org', 'Treasurer', 'admin', 'Org treasurer account')
 on conflict (email) do update
 set
   full_name = excluded.full_name,
