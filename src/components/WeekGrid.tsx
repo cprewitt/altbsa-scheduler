@@ -11,6 +11,7 @@ import {
 } from "@/components/BookSlotDialog";
 import {
   FACILITY_TZ,
+  calendarDateKey,
   formatDayHeader,
   formatHourLabel,
   localSlotToUtcIso,
@@ -366,16 +367,22 @@ export function WeekGrid({
       {pending && <p className="text-sm text-stone-500">Working…</p>}
 
       <div className="overflow-x-auto rounded border border-stone-200 bg-white">
-        <table className="min-w-[720px] w-full border-collapse text-sm">
+        <table className="w-full min-w-[64rem] table-fixed border-collapse text-sm">
+          <colgroup>
+            <col className="w-14" />
+            {days.map((d) => (
+              <col key={calendarDateKey(d)} />
+            ))}
+          </colgroup>
           <thead>
             <tr>
-              <th className="border-b-2 border-[var(--maroon)] px-2 py-2 text-left w-[70px]">
+              <th className="border-b-2 border-[var(--maroon)] px-2 py-2 text-left">
                 Time
               </th>
               {days.map((d) => (
                 <th
-                  key={d.toISOString()}
-                  className="border-b-2 border-[var(--maroon)] px-2 py-2 text-left"
+                  key={calendarDateKey(d)}
+                  className="border-b-2 border-[var(--maroon)] px-1 py-2 text-center text-xs sm:text-sm"
                 >
                   {formatDayHeader(d)}
                 </th>
@@ -385,7 +392,7 @@ export function WeekGrid({
           <tbody>
             {hours.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-4 text-stone-500">
+                <td colSpan={1 + days.length} className="px-3 py-4 text-stone-500">
                   No open hours configured for this week.
                 </td>
               </tr>
@@ -399,7 +406,7 @@ export function WeekGrid({
                     const cell = cellFor(day, hour);
                     return (
                       <td
-                        key={`${day.toISOString()}-${hour}`}
+                        key={`${calendarDateKey(day)}-${hour}`}
                         className="border-b border-stone-100 p-1 align-top"
                       >
                         <SlotCell
