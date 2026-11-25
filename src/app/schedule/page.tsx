@@ -103,7 +103,7 @@ export default async function SchedulePage({
   return (
     <div>
       <AppHeader profile={session.profile} active="schedule" />
-      <main className="mx-auto max-w-6xl px-4 py-5">
+      <main className="mx-auto max-w-7xl px-4 py-5">
         <h1 className="mb-1 text-xl font-semibold text-[var(--maroon)]">
           Weekly schedule
         </h1>

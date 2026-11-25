@@ -311,8 +311,12 @@ export function UnifiedSchedule({
           selectedId === ev.id ? "outline outline-2 outline-[var(--maroon)]" : ""
         }`}
       >
-        <div className="font-bold">{ev.title}</div>
-        <div>{teamNamesLabel(evTeams, ev.notes)}</div>
+        <div className={compact ? "truncate font-bold" : "font-bold"}>
+          {ev.title}
+        </div>
+        <div className={compact ? "truncate" : undefined}>
+          {teamNamesLabel(evTeams, ev.notes)}
+        </div>
         {coachLine ? (
           <div className={compact ? "truncate text-[10px] opacity-80" : "text-[10px] opacity-80"}>
             {coachLine}
@@ -564,16 +568,23 @@ export function UnifiedSchedule({
         </div>
       ) : (
         <div className="overflow-x-auto rounded border border-stone-200 bg-white">
-          <table className="min-w-[860px] w-full border-collapse text-sm">
+          {/* table-fixed + equal day cols so Sat is not pushed off-screen by wide cards */}
+          <table className="w-full min-w-[64rem] table-fixed border-collapse text-sm">
+            <colgroup>
+              <col className="w-14" />
+              {days.map((d) => (
+                <col key={calendarDateKey(d)} />
+              ))}
+            </colgroup>
             <thead>
               <tr className="bg-stone-50 text-[var(--maroon)]">
-                <th className="w-16 border-b border-stone-200 px-2 py-2 text-right font-semibold">
+                <th className="border-b border-stone-200 px-2 py-2 text-right font-semibold">
                   Time
                 </th>
                 {days.map((d) => (
                   <th
-                    key={d.toISOString()}
-                    className="border-b border-stone-200 px-2 py-2 font-semibold"
+                    key={calendarDateKey(d)}
+                    className="border-b border-stone-200 px-1 py-2 text-center text-xs font-semibold sm:text-sm"
                   >
                     {formatDayHeader(d)}
                   </th>
@@ -591,8 +602,8 @@ export function UnifiedSchedule({
                     const cellBlocks = blocksAt(day, hour);
                     return (
                       <td
-                        key={`${day.toISOString()}-${hour}`}
-                        className="border-b border-l border-stone-100 align-top p-1 min-h-[52px]"
+                        key={`${calendarDateKey(day)}-${hour}`}
+                        className="min-h-[52px] border-b border-l border-stone-100 p-1 align-top"
                       >
                         <div className="flex flex-col gap-1">
                           {cellBlocks.map((b) => (
